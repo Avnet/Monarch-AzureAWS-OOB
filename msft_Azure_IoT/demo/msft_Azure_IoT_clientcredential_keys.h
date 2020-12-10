@@ -9,8 +9,13 @@
 #ifndef MSFT_AZURE_IOT_CLIENTCREDENTIAL_KEYS_H_
 #define MSFT_AZURE_IOT_CLIENTCREDENTIAL_KEYS_H_
 
+#ifdef SAS_KEY
 
 #define keyDEVICE_SAS_PRIMARY_KEY ""
+#define keyCLIENT_CERTIFICATE_PEM NULL
+#define keyCLIENT_PRIVATE_KEY_PEM NULL
+
+#else
 
 /*
  * @brief PEM-encoded client certificate.
@@ -37,4 +42,5 @@
  */
 #define keyCLIENT_PRIVATE_KEY_PEM                   ""
 
+#endif
 #endif /* MSFT_AZURE_IOT_CLIENTCREDENTIAL_KEYS_H_ */
