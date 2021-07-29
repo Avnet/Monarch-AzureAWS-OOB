@@ -407,8 +407,8 @@ CellIoT_lib_setTLSSecurityProfileCfg(	uint8_t spId,
 										const char * cipherSpecs,
 										uint8_t certValidLevel,
 										uint8_t caCertificateID,
-										uint8_t clientCertificateID,
-										uint8_t clientPrivateKeyID,
+										int8_t clientCertificateID,
+										int8_t clientPrivateKeyID,
 										const char * psk,
 										const gsm_api_cmd_evt_fn evt_fn,
 										void* const evt_arg,
@@ -427,6 +427,85 @@ CellIoT_lib_setTLSSecurityProfileCfg(	uint8_t spId,
 	GSM_MSG_VAR_REF(msg).msg.tls_security_profile_cfg.clientCertificateID = clientCertificateID;
 	GSM_MSG_VAR_REF(msg).msg.tls_security_profile_cfg.clientPrivateKeyID = clientPrivateKeyID;
 	GSM_MSG_VAR_REF(msg).msg.tls_security_profile_cfg.psk = psk;
+
+	return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 30000);
+}
+
+gsmr_t
+CellIoT_lib_setTLSHostProfileCfg(	uint8_t connID,
+									const char* ip,						/*!< IP Address of the remote host port */
+									uint16_t rHostPort,					/*!< Remote host port contact */
+									uint8_t authType,					/*!< auth_type */
+									const char* user,					/*!< APN username */
+									const char* pass,					/*!< APN password */
+									uint8_t sslEnabled, 				/*!< ssl_enabled */
+									uint16_t timeout,					/*!< timeout */
+									uint8_t cid,						/*!< cid */
+									uint8_t spId,						/*!< spId */
+									const gsm_api_cmd_evt_fn evt_fn,
+									void* const evt_arg,
+									const uint32_t blocking)
+{
+
+	GSM_MSG_VAR_DEFINE(msg);
+
+	GSM_MSG_VAR_ALLOC(msg, blocking);
+	GSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
+	GSM_MSG_VAR_REF(msg).cmd_def = GSM_CMD_SQNHTTPCFG;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.connID = connID;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.ip = ip;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.rHostPort = rHostPort;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.authType = authType;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.user = user;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.pass = pass;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.sslEnabled = sslEnabled;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.timeout = timeout;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.cid = cid;
+	GSM_MSG_VAR_REF(msg).msg.tls_host_profile.spId = spId;
+
+	return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 30000);
+}
+
+gsmr_t
+CellIoT_lib_sendHTTP(	uint8_t prof_id,					/*!< Http Profile ID */
+						uint8_t command_type,				/*!< Command type, post==0 or put==1 */
+						const char* resource,				/*!< Http resourct, uri */
+						uint16_t data_len,					/*!< Length of the resource string */
+						uint8_t post_param,					/*!< Content type identifier */
+						const char* extra_header,			/*!< Extra header line */
+						const char* data,				/*!< message to post */
+						const gsm_api_cmd_evt_fn evt_fn,
+						void* const evt_arg,
+						const uint32_t blocking)
+{
+	GSM_MSG_VAR_DEFINE(msg);
+
+	GSM_MSG_VAR_ALLOC(msg, blocking);
+	GSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
+	GSM_MSG_VAR_REF(msg).cmd_def = GSM_CMD_SQNHTTPSND;
+	GSM_MSG_VAR_REF(msg).msg.http_send.prof_id = prof_id;
+	GSM_MSG_VAR_REF(msg).msg.http_send.command_type = command_type;
+	GSM_MSG_VAR_REF(msg).msg.http_send.resource = resource;
+	GSM_MSG_VAR_REF(msg).msg.http_send.data_len = data_len;
+	GSM_MSG_VAR_REF(msg).msg.http_send.post_param = post_param;
+	GSM_MSG_VAR_REF(msg).msg.http_send.extra_header = extra_header;
+	GSM_MSG_VAR_REF(msg).msg.http_send.data = data;
+
+	return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 30000);
+}
+
+gsmr_t
+CellIoT_lib_recvHTTP(	uint8_t prof_id,					/*!< Http Profile ID */
+						const gsm_api_cmd_evt_fn evt_fn,
+						void* const evt_arg,
+						const uint32_t blocking)
+{
+	GSM_MSG_VAR_DEFINE(msg);
+
+	GSM_MSG_VAR_ALLOC(msg, blocking);
+	GSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
+	GSM_MSG_VAR_REF(msg).cmd_def = GSM_CMD_SQNHTTPRCV;
+	GSM_MSG_VAR_REF(msg).msg.http_send.prof_id = prof_id;
 
 	return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 30000);
 }

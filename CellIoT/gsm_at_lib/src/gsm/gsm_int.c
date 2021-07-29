@@ -948,7 +948,15 @@ gsmi_parse_received(gsm_recv_t* rcv) {
 			{
 				rxDataStage = NO_DATA_PENDING;
 			}
-        }
+		}
+		else if ( !strncmp(rcv->data, "+SQNHTTPRING", 12) )
+		{
+			const char *str = &rcv->data[14];
+			gsm.m.http_response.prof_id = gsmi_parse_number(&str);
+			gsm.m.http_response.status_code = gsmi_parse_number(&str);
+			gsmi_parse_string(&str, gsm.m.http_response.type, sizeof(gsm.m.http_response.type) - 1, 1);
+			gsm.m.http_response.data_size = gsmi_parse_number(&str);
+		}
 		else if (CMD_IS_CUR(GSM_CMD_SQNSNVW_W) && is_error) {
         	/* At the moment, push a new msg to the produce queue here to retry *
         	 * TO DO: it will be needed to be place at the application layer later
@@ -1057,6 +1065,10 @@ gsmi_parse_received(gsm_recv_t* rcv) {
             gsmi_parse_ip(&tmp, &gsm.m.network.ip_addr);/* Parse IP address */
 
             is_ok = 1;                          /* Manually set OK flag as we don't expect OK in CIFSR command */
+        } else if (!strncmp(rcv->data, "<<<", 3)) {
+            strncpy(gsm.m.http_response.data, &rcv->data[3], sizeof(gsm.m.http_response.data));
+            gsm.m.http_response.data[sizeof(gsm.m.http_response.data) - 1] = '\0';
+            gsm.m.http_response.is_valid = 1;
         }
     }
 
@@ -1677,6 +1689,25 @@ gsmi_process(const void* data, size_t data_len) {
 							else
 							{
 								gsmi_send_string(gsm.msg->msg.modem_memory.cert_key_ptr, 0, 0, 0);
+							}
+						} else if(CMD_IS_CUR(GSM_CMD_SQNHTTPSND)) {
+							RECV_RESET();       /* Reset received object */
+							/* Now send the extra data */
+							if( DMA_MAX_TRANSFER_COUNT < gsm.msg->msg.http_send.data_len )
+							{
+								uint16_t remaining_size = gsm.msg->msg.http_send.data_len;
+								char* ptx = (char *)gsm.msg->msg.http_send.data;
+								while(DMA_MAX_TRANSFER_COUNT < remaining_size)
+								{
+									gsmi_send_sized_string(ptx, DMA_MAX_TRANSFER_COUNT, 0, 0, 0);
+									remaining_size -= DMA_MAX_TRANSFER_COUNT;
+									ptx += DMA_MAX_TRANSFER_COUNT;
+								}
+								gsmi_send_sized_string(ptx, remaining_size, 0, 0, 0);
+							}
+							else
+							{
+								gsmi_send_string(gsm.msg->msg.http_send.data, 0, 0, 0);
 							}
 						}
                         else if(CMD_IS_DEF(GSM_CMD_SQNSSEND))
@@ -2609,7 +2640,9 @@ gsmi_initiate_cmd(gsm_msg_t* msg) {
 			for(int i=0;i<200;i++);
 			gsmi_send_number(GSM_U32(msg->msg.modem_memory.index), 0, 1);
 			gsmi_send_number(GSM_U32(msg->msg.modem_memory.certkeysize), 0, 1);
-			AT_PORT_SEND_END_AT();
+			AT_PORT_SEND("\r", 1);
+			PRINTF("\n");
+			AT_PORT_SEND(NULL, 0);
 			break;
         }
         case GSM_CMD_SQNDNSLKUP: {
@@ -2681,12 +2714,67 @@ gsmi_initiate_cmd(gsm_msg_t* msg) {
 			gsmi_send_string(msg->msg.tls_security_profile_cfg.cipherSpecs, 1, 1, 1);
 			gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.certValidLevel), 0, 1);
 			gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.caCertificateID), 0, 1);
-			gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.clientCertificateID), 0, 1);
-			gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.clientPrivateKeyID), 0, 1);
-			if(NULL != msg->msg.tls_security_profile_cfg.psk)
-			{
-				gsmi_send_string(msg->msg.tls_security_profile_cfg.psk, 1, 1, 1);
+			uint8_t flags = 0;
+			if (msg->msg.tls_security_profile_cfg.clientCertificateID >= 0) flags |= 0x01;
+			if (msg->msg.tls_security_profile_cfg.clientPrivateKeyID >= 0) flags |= 0x02;
+			if (msg->msg.tls_security_profile_cfg.psk != NULL) flags |= 0x04;
+			if (flags) {
+				if (flags & 0x01) {
+					gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.clientCertificateID), 0, 1);
+				} else {
+					gsmi_send_string("", 0, 0, 1);  // just put a comma
+				}
+				if (flags & 0x02) {
+					gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.clientPrivateKeyID), 0, 1);
+				} else {
+					gsmi_send_string("", 0, 0, 1);  // just put a comma
+				}
+				if (flags & 0x04) {
+					gsmi_send_string(msg->msg.tls_security_profile_cfg.psk, 1, 1, 1);
+				}
 			}
+			AT_PORT_SEND_END_AT();
+			break;
+        }
+        case GSM_CMD_SQNHTTPCFG: {
+			AT_PORT_SEND_BEGIN_AT();
+			AT_PORT_SEND_CONST_STR("+SQNHTTPCFG=");
+			gsmi_send_number(GSM_U32(msg->msg.tls_host_profile.connID), 0, 0);
+			gsmi_send_string(msg->msg.tls_host_profile.ip, 0, 1, 1);
+			gsmi_send_number(GSM_U32(msg->msg.tls_host_profile.rHostPort), 0, 1);
+			gsmi_send_number(GSM_U32(msg->msg.tls_host_profile.authType), 0, 1);
+			gsmi_send_string(msg->msg.tls_host_profile.user, 0, 0, 1);
+			gsmi_send_string(msg->msg.tls_host_profile.pass, 0, 0, 1);
+			gsmi_send_number(GSM_U32(msg->msg.tls_host_profile.sslEnabled), 0, 1);
+			gsmi_send_number(GSM_U32(msg->msg.tls_host_profile.timeout), 0, 1);
+			if(0 == msg->msg.tls_host_profile.cid){ // Zero is invalid for the cid
+				gsmi_send_string("", 0, 0, 1); // just put a comma
+			}
+			else{
+				gsmi_send_number(GSM_U32(msg->msg.tls_host_profile.cid), 0, 1);
+			}
+			gsmi_send_number(GSM_U32(msg->msg.tls_host_profile.spId), 0, 1);
+			AT_PORT_SEND_END_AT();
+			break;
+        }
+        case GSM_CMD_SQNHTTPSND: {
+			AT_PORT_SEND_BEGIN_AT();
+			AT_PORT_SEND_CONST_STR("+SQNHTTPSND=");
+			gsmi_send_number(GSM_U32(msg->msg.http_send.prof_id), 0, 0);
+			gsmi_send_number(GSM_U32(msg->msg.http_send.command_type), 0, 1);
+			gsmi_send_string(msg->msg.http_send.resource, 0, 1, 1);
+			gsmi_send_number(GSM_U32(msg->msg.http_send.data_len), 0, 1);
+			gsmi_send_number(GSM_U32(msg->msg.http_send.post_param), 1, 1);
+			gsmi_send_string(msg->msg.http_send.extra_header, 0, 1, 1);
+			AT_PORT_SEND("\r", 1);
+			PRINTF("\n");
+			AT_PORT_SEND(NULL, 0);
+			break;
+        }
+        case GSM_CMD_SQNHTTPRCV: {
+			AT_PORT_SEND_BEGIN_AT();
+			AT_PORT_SEND_CONST_STR("+SQNHTTPRCV=");
+			gsmi_send_number(GSM_U32(msg->msg.http_send.prof_id), 0, 0);
 			AT_PORT_SEND_END_AT();
 			break;
         }

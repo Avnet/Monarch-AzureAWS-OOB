@@ -27,6 +27,8 @@
 #include "azure_iotc_utils.h"
 #include "iotc_json.h"
 #include "gsm_private.h"
+#include "CellIoT_lib.h"
+#include "gsm_http.h"
 
 /* Board specific accelerometer driver include */
 #if defined(BOARD_ACCEL_FXOS)
@@ -139,6 +141,26 @@ char red_led_state[6];
 char green_led_state[6];
 char blue_led_state[6];
 
+#define THINGSPACE_LOCATION_ENABLE
+
+#ifdef THINGSPACE_LOCATION_ENABLE
+	#define THINGSPACE_LOCATION_UPDATE_RATE ( 3 ) // minutes between location updates, set to 0 to disable (startup update only)
+#endif
+
+static const char *thingspaceUrl = "thingspace.verizon.com";
+
+static const char *tokenEndpoint = "/api/ts/v1/oauth2/token";
+static const char *tokenBody = "grant_type=client_credentials";
+static const char *tokenHeader = "Authorization: Basic " THINGSPACE_KEY_SECRET;
+
+static const char *loginEndpoint = "/api/m2m/v1/session/login";
+static const char *loginBody = "{\"username\":\"" THINGSPACE_USER "\",\"password\":\"" THINGSPACE_PASSWORD "\"}";
+
+static const char *locationEndpoint = "/api/loc/v1/locations";
+static const char *locationBody = "{\"accountName\":\"" THINGSPACE_ACCOUNT_NUM "\",\"cacheMode\":\"2\",\"deviceList\":[{\"id\":\"" THINGSPACE_DEVICE_IMEI "\",\"kind\":\"IMEI\",\"mdn\":\"" THINGSPACE_DEVICE_MDN "\"}]}";
+
+static const char *bearerPrefix = "accept: application/json@authorization: Bearer ";
+static const char *vz_m2mPrefix = "@VZ-M2M-Token: ";
 
 typedef enum AZURE_TWIN_TASK_ST
 {
@@ -166,6 +188,7 @@ typedef enum AZURE_TWIN_TASK_ST
 	AZURE_SM_PUB_SENSOR_TELEMETRY,
 	AZURE_SM_PUB_LOC_TELEMETRY,
 	AZURE_SM_PUB_CELLULAR_TELEMETRY,
+	AZURE_SM_LOCATION_UPDATE,
 	AZURE_SM_IDLE,
 	AZURE_SM_STATES_BNDRY
 }Azure_SM_Task;
@@ -181,11 +204,13 @@ static MQTTAgentSubscribeParams_t xSubscribeParams;
 static MQTTAgentPublishParams_t xPublishParameters;
 EventGroupHandle_t xCreatedEventGroup;
 TimerHandle_t xTelemetryPublishTimer;
+TimerHandle_t xLocationUpdateTimer;
 EventBits_t uxBits;
 bool bIsStartUpPhase = true;
 #define EVENT_BIT_MASK	( 1 << 0 )
 #define LED_UPDATE_BIT_MASK	( 1 << 1 )
 #define TELEMETRY_PUB_BIT_MASK	( 1 << 2 )
+#define LOCATION_UPDATE_BIT_MASK	( 1 << 3 )
 
 #if defined(BOARD_ACCEL_FXOS) || defined(BOARD_ACCEL_MMA)
 /* Actual state of accelerometer */
@@ -279,9 +304,6 @@ int readAccelData(vector_t* vec)
 }
 #endif
 
-
-
-
 void vTimerCallback( TimerHandle_t xTimer )
 {
    /* Optionally do something if the pxTimer parameter is NULL. */
@@ -289,6 +311,12 @@ void vTimerCallback( TimerHandle_t xTimer )
 
    xEventGroupSetBits(xCreatedEventGroup, TELEMETRY_PUB_BIT_MASK);
 
+}
+
+void vLocationUpdateTimerCallback( TimerHandle_t xTimer )
+{
+   configASSERT( xTimer );
+   xEventGroupSetBits(xCreatedEventGroup, LOCATION_UPDATE_BIT_MASK);
 }
 
 void deviceRegistrationCallback(char * propertyName, char * payload, size_t payload_len)
@@ -519,6 +547,121 @@ MQTTBool_t Azure_IoT_CallBack(void * pvPublishCallbackContext,
 	return eMQTTTrue;
 }
 
+static uint8_t http_do_post(const char            *endpoint,
+                            uint8_t               post_param,
+                            const char            *body,
+                            const char            *header,
+                            gsm_http_response_t   *response) {
+	uint8_t timeout;
+
+	timeout = 250;
+	gsm_http_response_reset();
+	CellIoT_lib_sendHTTP(1, 0, endpoint, strlen(body), post_param, header, body, NULL, NULL, 29 * 1000);
+	while (timeout != 0 && !gsm_http_response_is_ready()) {
+		vTaskDelay(pdMS_TO_TICKS(100));
+		timeout--;
+	}
+	if (timeout == 0) return 0;
+
+	timeout = 10;
+	CellIoT_lib_recvHTTP(1, NULL, NULL, 3000);
+	while (timeout != 0 && !gsm_http_response_is_valid()) {
+		vTaskDelay(pdMS_TO_TICKS(100));
+		timeout--;
+	}
+	if (timeout == 0) return 0;
+
+	gsm_http_response_get(response);
+	return 1;
+}
+
+static char * http_parse_json(const char *json, const char *name) {
+	jsobject_t object;
+	jsobject_initialize(&object, json, strlen(json));
+	char *value = jsobject_get_string_by_name(&object, name);
+	jsobject_free(&object);
+	return value;
+}
+
+static uint8_t thingspace_location_update(void) {
+	AZURE_PRINTF(("Pulling location from ThingSpace...\r\n"));
+
+	uint8_t is_connected = 0;
+	is_connected |= gsm_network_get_reg_status() == GSM_NETWORK_REG_STATUS_CONNECTED;
+	is_connected |= gsm_network_get_reg_status() == GSM_NETWORK_REG_STATUS_CONNECTED_ROAMING;
+	if (!is_connected) {
+		AZURE_PRINTF(("Get ThingSpace location: no network\r\n"));
+		return 0;
+	}
+
+	gsm_http_response_t response;
+
+	if (!http_do_post(tokenEndpoint, 0, tokenBody, tokenHeader, &response)) {
+		AZURE_PRINTF(("Get ThingSpace location: token request failed\r\n"));
+		return 0;
+	}
+
+	char *token_bearer = http_parse_json(response.data, "access_token");
+	if (!token_bearer) {
+		AZURE_PRINTF(("Get ThingSpace location: token parse failed (%s)\r\n", response.data));
+		return 0;
+	}
+
+	char *bearerHeader = AZURE_IOTC_MALLOC(strlen(bearerPrefix) + strlen(token_bearer) + 1);
+	strcpy(bearerHeader, bearerPrefix);
+	strcat(bearerHeader, token_bearer);
+	AZURE_IOTC_FREE(token_bearer);
+	if (!http_do_post(loginEndpoint, 4, loginBody, bearerHeader, &response)) {
+		AZURE_IOTC_FREE(bearerHeader);
+		AZURE_PRINTF(("Get ThingSpace location: login request failed\r\n"));
+		return 0;
+	}
+
+	char *token_vz_m2m = http_parse_json(response.data, "sessionToken");
+	if (!token_vz_m2m) {
+		AZURE_IOTC_FREE(bearerHeader);
+		AZURE_PRINTF(("Get ThingSpace location: vzm2m parse failed (%s)\r\n", response.data));
+		return 0;
+	}
+
+	char *locationHeader = AZURE_IOTC_MALLOC(strlen(bearerHeader) + strlen(vz_m2mPrefix) + strlen(token_vz_m2m) + 1);
+	strcpy(locationHeader, bearerHeader);
+	strcat(locationHeader, vz_m2mPrefix);
+	strcat(locationHeader, token_vz_m2m);
+	AZURE_IOTC_FREE(bearerHeader);
+	AZURE_IOTC_FREE(token_vz_m2m);
+	if (!http_do_post(locationEndpoint, 4, locationBody, locationHeader, &response)) {
+		AZURE_IOTC_FREE(locationHeader);
+		AZURE_PRINTF(("Get ThingSpace location: location request failed\r\n"));
+		return 0;
+	}
+	AZURE_IOTC_FREE(locationHeader);
+
+	char *location_x = http_parse_json(response.data, "x");
+	char *location_y = http_parse_json(response.data, "y");
+	if (!location_x || !location_y) {
+		if (location_x) AZURE_IOTC_FREE(location_x);
+		if (location_y) AZURE_IOTC_FREE(location_y);
+		AZURE_PRINTF(("Get ThingSpace location: location parse failed (%s)\r\n", response.data));
+		return 0;
+	}
+
+	double new_lat = strtod(location_x, NULL);
+	double new_lon = strtod(location_y, NULL);
+	AZURE_IOTC_FREE(location_x);
+	AZURE_IOTC_FREE(location_y);
+
+	if (-90 <= new_lat && new_lat <= 90 && -180 <= new_lon && new_lon <= 180) {
+		lat = new_lat;
+		lon = new_lon;
+		AZURE_PRINTF(("Get ThingSpace location: updated coords to (%f,%f)\r\n", lat, lon));
+		return 1;
+	} else {
+		AZURE_PRINTF(("Get ThingSpace location: coords out of range (%s,%s) => (%f,%f)\r\n", location_x, location_y, lat, lon));
+		return 0;
+	}
+}
+
 void prvmcsft_Azure_TwinTask( void * pvParameters )
 {
 	MQTTAgentReturnCode_t xMQTTReturn;
@@ -582,7 +725,11 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 #endif
 #endif
 
+#ifdef THINGSPACE_LOCATION_ENABLE
+    eAzure_SM_Task = AZURE_SM_LOCATION_UPDATE;
+#else
     eAzure_SM_Task = AZURE_SM_CONNECT_TO_DPS;
+#endif
 
     xCreatedEventGroup = xEventGroupCreate();
     xTelemetryPublishTimer = xTimerCreate( "Telemetry Publish Timer",
@@ -590,6 +737,14 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 											pdFALSE,
 											( void * ) 0,
 											vTimerCallback );
+
+#if THINGSPACE_LOCATION_UPDATE_RATE
+    xLocationUpdateTimer = xTimerCreate( "Location Update Timer",
+											pdMS_TO_TICKS(60 * 1000),
+											pdFALSE,
+											( void * ) 0,
+											vLocationUpdateTimerCallback );
+#endif
 
     while( 1 )
     {
@@ -1249,14 +1404,51 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 
 				break;
 
+#ifdef THINGSPACE_LOCATION_ENABLE
+			case AZURE_SM_LOCATION_UPDATE:
+				vTaskDelay(pdMS_TO_TICKS(1000));
+
+				if (bIsStartUpPhase) {
+					eAzure_SM_Task = AZURE_SM_CONNECT_TO_DPS;
+
+					// Configure HTTPS
+					CellIoT_lib_setTLSSecurityProfileCfg(3, 2, "", 0, 5, -1, -1, NULL, NULL, NULL, 3000);
+					CellIoT_lib_setTLSHostProfileCfg(1, thingspaceUrl, 443, 0, "", "", 1, 25, 0, 3, NULL, NULL, 3000);
+				} else {
+					eAzure_SM_Task = AZURE_SM_IDLE;
+
+					static uint32_t update_delay = 0;
+					if (++update_delay == THINGSPACE_LOCATION_UPDATE_RATE) {
+						update_delay = 0;
+					} else {
+						break;
+					}
+				}
+
+				if (thingspace_location_update()) {
+					AZURE_PRINTF(("Location update successful!\r\n"));
+				} else {
+					AZURE_PRINTF(("Location update failed.\r\n"));
+				}
+
+				break;
+#endif
+
     		case AZURE_SM_IDLE:
     			if( xTimerIsTimerActive( xTelemetryPublishTimer ) == pdFALSE )
     			{
     				xTimerStart( xTelemetryPublishTimer, 0 );
     			}
 
+#if THINGSPACE_LOCATION_UPDATE_RATE
+				if( xTimerIsTimerActive( xLocationUpdateTimer ) == pdFALSE )
+				{
+					xTimerStart( xLocationUpdateTimer, 0 );
+				}
+#endif
+
     			uxBits = xEventGroupWaitBits(xCreatedEventGroup,
-    										 LED_UPDATE_BIT_MASK | TELEMETRY_PUB_BIT_MASK,
+											LED_UPDATE_BIT_MASK | TELEMETRY_PUB_BIT_MASK | LOCATION_UPDATE_BIT_MASK,
 											 pdTRUE,
 											 pdFALSE,
 											 pdMS_TO_TICKS( 120000UL ));
@@ -1268,6 +1460,10 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 				else if( ( uxBits & TELEMETRY_PUB_BIT_MASK ) != 0 )
 				{
 					eAzure_SM_Task = eNext_Azure_State;
+				}
+				else if( ( uxBits & LOCATION_UPDATE_BIT_MASK ) != 0 )
+				{
+					eAzure_SM_Task = AZURE_SM_LOCATION_UPDATE;
 				}
 				else
 				{

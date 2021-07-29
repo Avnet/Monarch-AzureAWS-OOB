@@ -283,6 +283,9 @@ typedef enum {
 	GSM_CMD_SQNBANDSEL_SET,
 	GSM_CMD_UCI_SET,
 	GSM_CMD_UCI_SET_TWO,
+	GSM_CMD_SQNHTTPCFG,							/*< Configure HTTP server */
+	GSM_CMD_SQNHTTPSND,							/*< Send Post or Put message */
+	GSM_CMD_SQNHTTPRCV,						/*< Send Post or Put message */
 #endif /* GSM_SEQUANS_SPECIFIC_CMD */
 
     GSM_CMD_END,                                /*!< Last CMD entry */
@@ -593,8 +596,8 @@ typedef struct gsm_msg {
 			const char * cipherSpecs;			/*!< Exact list of cipher suite to be used, 8-bit hexadecimal "0x" prefixed IANA numbers, semicolon delimited */
 			uint8_t certValidLevel;				/*!< Server certificate validation 8-bit field */
 			uint8_t caCertificateID;			/*!< Trusted Certificate Authority certificate ID, integer in range [0-19] */
-			uint8_t clientCertificateID;		/*!< Client certificate ID, integer in range [0-19] */
-			uint8_t clientPrivateKeyID;			/*!< Client private key ID, integer in range [0-19] */
+			int8_t clientCertificateID;		/*!< Client certificate ID, integer in range [0-19] */
+			int8_t clientPrivateKeyID;			/*!< Client private key ID, integer in range [0-19] */
 			const char * psk;					/*!< Pre-shared key used for connection (when a TLS_PSK_* cipher suite is used) */
 		} tls_security_profile_cfg;				/*!< Sets the security profile parameters required to configure the following SSL/TLS connections properties */
 		struct {
@@ -624,6 +627,27 @@ typedef struct gsm_msg {
 		struct {
 			uint8_t id;
 		} set_ati;
+		struct {
+			uint8_t connID;
+			const char* ip;						/*!< IP Address of the remote host port */
+			uint16_t rHostPort;					/*!< Remote host port contact */
+			uint8_t authType;					/*!< auth_type */
+			const char* user;					/*!< APN username */
+			const char* pass;					/*!< APN password */
+			uint8_t sslEnabled; 				/*!< ssl_enabled */
+			uint16_t timeout;					/*!< timeout */
+			uint8_t cid;						/*!< cid */
+			uint8_t spId;						/*!< spId */
+		} tls_host_profile;
+		struct {
+			uint8_t prof_id;					/*!< Http Profile ID */
+			uint8_t command_type;				/*!< Command type, post==0 or put==1 */
+			const char* resource;				/*!< Http resourct, uri */
+			uint16_t data_len;					/*!< Length of the resource string */
+			uint8_t post_param;					/*!< Content type identifier */
+			const char* extra_header;			/*!< Extra header line */
+			const char* data;				/*!< message to post */
+		} http_send;
 
 #endif /* GSM_SEQUANS_SPECIFIC_CMD || __DOXYGEN__ */
     } msg;                                      /*!< Group of different possible message contents */
@@ -722,6 +746,15 @@ typedef struct {
     gsm_ip_t ip_addr;                           /*!< Device IP address when network PDP context is enabled */
 } gsm_network_t;
 
+typedef struct {
+    uint8_t  prof_id;
+    int16_t  status_code;
+    char     type[0x100];
+    uint16_t data_size;
+    char     data[0x400];
+    uint8_t  is_valid;
+} gsm_http_response_t;
+
 /**
  * \brief           GSM modules structure
  */
@@ -737,6 +770,8 @@ typedef struct {
     gsm_sim_t           sim;                    /*!< SIM data */
     gsm_network_t       network;                /*!< Network status */
     int16_t             rssi;                   /*!< RSSI signal strength. `0` = invalid, `-53 % -113` = valid */
+
+    gsm_http_response_t http_response;
 
     /* Device specific */
 #if GSM_CFG_CONN || __DOXYGEN__
