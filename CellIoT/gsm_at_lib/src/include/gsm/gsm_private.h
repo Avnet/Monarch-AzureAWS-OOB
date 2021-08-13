@@ -131,6 +131,8 @@ typedef enum {
     GSM_CMD_CGMM_GET,                           /*!< Request Model Identification */
     GSM_CMD_CGMR_GET,                           /*!< Request TA Revision Identification of Software Release */
     GSM_CMD_CGSN_GET,                           /*!< Request Product Serial Number Identification (Identical with +GSN) */
+    GSM_CMD_ICCID_GET,                          /*!< Request Card Identification Number */
+    GSM_CMD_MSISDN_GET,                         /*!< Request Card Phone Number */
 
     GSM_CMD_CLCC_SET,                           /*!< List Current Calls of ME */
     GSM_CMD_CLCK,                               /*!< Facility Lock */
@@ -173,6 +175,8 @@ typedef enum {
     GSM_CMD_CFUN_GET,                           /*!< Get Phone Functionality */
     GSM_CMD_CREG_SET,                           /*!< Network Registration set output */
     GSM_CMD_CREG_GET,                           /*!< Get current network registration status */
+    GSM_CMD_CEREG_SET,                          /*!< Network Registration set output */
+    GSM_CMD_CEREG_GET,                          /*!< Get current network registration status */
     GSM_CMD_CBC,                                /*!< Battery Charge */
     GSM_CMD_CNUM,                               /*!< Subscriber Number */
 
@@ -436,6 +440,7 @@ typedef struct gsm_msg {
             const char* name;                   /*!< Short or long name, according to format */
             uint32_t num;                       /*!< Number in case format is number */
         } cops_set;                             /*!< Set operator settings */
+        gsm_cereg_status_t *cereg_get_status;   /*!< Get current cereg info */
 
 #if GSM_CFG_CONN || __DOXYGEN__
         /* Connection based commands */

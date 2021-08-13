@@ -232,6 +232,7 @@ typedef enum {
     GSM_OPERATOR_MODE_AUTO = 0x00,              /*!< Operator automatic mode */
     GSM_OPERATOR_MODE_MANUAL = 0x01,            /*!< Operator manual mode */
     GSM_OPERATOR_MODE_DEREGISTER = 0x02,        /*!< Operator deregistered from network */
+    GSM_OPERATOR_MODE_SET_FORMAT = 0x03,        /*!< Operator set format for read command */
     GSM_OPERATOR_MODE_MANUAL_AUTO = 0x04,       /*!< Operator manual mode first. If fails, auto mode enabled */
 } gsm_operator_mode_t;
 
@@ -270,6 +271,15 @@ typedef struct {
         uint32_t num;                           /*!< Number format */
     } data;                                     /*!< Operator data union */
 } gsm_operator_curr_t;
+
+/**
+ * \ingroup         GSM_OPERATOR
+ * \brief           Current operator info
+ */
+typedef struct {
+    uint16_t lac;                   /*!< Location Area Code */
+    uint32_t cid;                   /*!< Cell Identifier */
+} gsm_cereg_status_t;
 
 /**
  * \ingroup         GSM_NETWORK

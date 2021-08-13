@@ -83,14 +83,14 @@ uint32_t totalMemory = 960;
 		"\"device_id\": \"%s\"" 				\
 	"}"
 
-uint32_t mcc = 208;
-uint32_t mnc = 01;
-uint32_t lac = 0;
-uint32_t cid = 4;
-char iccid[] = {"89148000005471125146"};
-char imei[] = {"354658090355378"};
-char modem_fw[] = {"UE5.2.0.1"};
-char device_id[] = {"19494031513"};
+uint32_t mcc;
+uint32_t mnc;
+uint32_t lac;
+uint32_t cid;
+char iccid[32];
+char imei[32];
+char modem_fw[32];
+char device_id[32];
 
 
 #define Device_Sensor_Telemetry_JSON 		\
@@ -106,7 +106,6 @@ char device_id[] = {"19494031513"};
 
 vector_t accel_vector;
 double light_sensor = 78.9;
-//uint16_t rssi = -40;
 bool button = false;
 double current =  9.87;
 
@@ -127,7 +126,7 @@ double current =  9.87;
 
 // Avnet set as default map location
 double lat = 33.42745;
-double lon = -111.98213;
+double lon = -111.98013;
 double alt = 0;
 
 #define Device_Led_Property_JSON 	\
@@ -664,6 +663,20 @@ static uint8_t thingspace_location_update(void) {
 
 #endif  //THINGSPACE_LOCATION_ENABLE
 
+static void update_connection_info(void) {
+	gsm_operator_curr_t operator;
+	gsm_operator_get(&operator, NULL, NULL, 1);
+	if (operator.format == GSM_OPERATOR_FORMAT_NUMBER) {
+		mcc = operator.data.num / 1000;
+		mnc = operator.data.num % 1000;
+	}
+
+	gsm_cereg_status_t cereg;
+	gsm_cereg_get_status(&cereg, NULL, NULL, 1);
+	lac = cereg.lac;
+	cid = cereg.cid;
+}
+
 void prvmcsft_Azure_TwinTask( void * pvParameters )
 {
 	MQTTAgentReturnCode_t xMQTTReturn;
@@ -680,6 +693,23 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
     memcpy(red_led_state, "false", strlen("false"));
     memcpy(green_led_state, "false", strlen("false"));
     memcpy(blue_led_state, "false", strlen("false"));
+
+    gsm_device_get_serial_number(imei, sizeof(imei), NULL, NULL, 1);
+    gsm_device_get_card_id_number(iccid, sizeof(iccid), NULL, NULL, 1);
+    gsm_device_get_revision(modem_fw, sizeof(modem_fw), NULL, NULL, 1);
+    gsm_device_get_card_phone_number(device_id, sizeof(device_id), NULL, NULL, 1);
+    gsm_operator_set(GSM_OPERATOR_MODE_SET_FORMAT, GSM_OPERATOR_FORMAT_NUMBER, NULL, 0, NULL, NULL, 1);
+    gsm_cereg_set(NULL, NULL, 1);
+    // update_connection_info();
+
+    char *end;
+    if ((end = strpbrk(imei, "\r\n"))) *end = '\0';
+    if ((end = strpbrk(modem_fw, "\r\n"))) *end = '\0';
+
+    configPRINTF(("IMEI:  %s\r\n", imei));
+    configPRINTF(("ICCID: %s\r\n", iccid));
+    configPRINTF(("FW:    %s\r\n", modem_fw));
+    configPRINTF(("NUM:   %s\r\n", device_id));
 
     /* Initialize common libraries required by demo. */
 	if (IotSdk_Init() != true)
@@ -1380,6 +1410,8 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 				memset(&(xPublishParameters), 0x00, sizeof(xPublishParameters));
 				memset(cTopic, 0, sizeof(cTopic));
 				memset(cPayload, 0, sizeof(cPayload));
+
+				update_connection_info();
 
                 sprintf(cTopic, AZURE_IOT_TELEMETRY_TOPIC_FOR_PUB, clientcredentialAZURE_IOT_DEVICE_ID);
 				sprintf(cPayload, Device_Cellular_Telemetry_JSON, mcc , mnc, lac, cid, iccid, imei, modem_fw, device_id);

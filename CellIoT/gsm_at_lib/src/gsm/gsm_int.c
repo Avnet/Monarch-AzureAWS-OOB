@@ -973,6 +973,23 @@ gsmi_parse_received(gsm_recv_t* rcv) {
 			is_ok = 1;
 		}
 #endif /* GSM_SEQUANS_SPECIFIC_CMD */
+		else if (CMD_IS_CUR(GSM_CMD_ICCID_GET) && !strncmp(rcv->data, "+SQNCCID", 8)) {
+			const char* tmp = &rcv->data[10];
+			gsmi_parse_string(&tmp, gsm.msg->msg.device_info.str, gsm.msg->msg.device_info.len, 1);
+		}
+		else if (CMD_IS_CUR(GSM_CMD_MSISDN_GET) && !strncmp(rcv->data, "+CNUM", 5)) {
+			const char* tmp = &rcv->data[7];
+			gsmi_parse_string(&tmp, NULL, 0, 0);
+			if (!strncmp(tmp, ",\"+", 3)) tmp += 3;
+			gsmi_parse_string(&tmp, gsm.msg->msg.device_info.str, gsm.msg->msg.device_info.len, 1);
+		}
+		else if (CMD_IS_CUR(GSM_CMD_CEREG_GET) && !strncmp(rcv->data, "+CEREG", 6)) {
+			const char* tmp = &rcv->data[8];
+			gsmi_parse_number(&tmp);
+			gsmi_parse_number(&tmp);
+			gsm.msg->msg.cereg_get_status->lac = gsmi_parse_hexnumber(&tmp);
+			gsm.msg->msg.cereg_get_status->cid = gsmi_parse_hexnumber(&tmp);
+		}
 
 
 
@@ -2173,6 +2190,18 @@ gsmi_initiate_cmd(gsm_msg_t* msg) {
             AT_PORT_SEND_END_AT();
             break;
         }
+        case GSM_CMD_ICCID_GET: {                /* Get ICCID number */
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+SQNCCID");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
+        case GSM_CMD_MSISDN_GET: {                /* Get phone number */
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CNUM");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
         case GSM_CMD_CREG_SET: {                /* Enable +CREG message */
             AT_PORT_SEND_BEGIN_AT();
             AT_PORT_SEND_CONST_STR("+CREG=1");
@@ -2182,6 +2211,18 @@ gsmi_initiate_cmd(gsm_msg_t* msg) {
         case GSM_CMD_CREG_GET: {                /* Get network registration status */
             AT_PORT_SEND_BEGIN_AT();
             AT_PORT_SEND_CONST_STR("+CREG?");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
+        case GSM_CMD_CEREG_SET: {                /* Enable +CREG message */
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CEREG=2");
+            AT_PORT_SEND_END_AT();
+            break;
+        }
+        case GSM_CMD_CEREG_GET: {                /* Get network registration status */
+            AT_PORT_SEND_BEGIN_AT();
+            AT_PORT_SEND_CONST_STR("+CEREG?");
             AT_PORT_SEND_END_AT();
             break;
         }
@@ -2249,13 +2290,18 @@ gsmi_initiate_cmd(gsm_msg_t* msg) {
             gsmi_send_number(GSM_U32(msg->msg.cops_set.mode), 0, 0);
             if (msg->msg.cops_set.mode != GSM_OPERATOR_MODE_AUTO) {
                 gsmi_send_number(GSM_U32(msg->msg.cops_set.format), 0, 1);
-                switch (msg->msg.cops_set.format) {
-                    case GSM_OPERATOR_FORMAT_LONG_NAME:
-                    case GSM_OPERATOR_FORMAT_SHORT_NAME:
-                        gsmi_send_string(msg->msg.cops_set.name, 1, 1, 1);
-                        break;
-                    default:
-                        gsmi_send_number(GSM_U32(msg->msg.cops_set.num), 0, 1);
+                if (msg->msg.cops_set.mode != GSM_OPERATOR_MODE_SET_FORMAT) {
+                    switch (msg->msg.cops_set.format) {
+                        case GSM_OPERATOR_FORMAT_LONG_NAME:
+                        case GSM_OPERATOR_FORMAT_SHORT_NAME:
+                            gsmi_send_string(msg->msg.cops_set.name, 1, 1, 1);
+                            break;
+                        case GSM_OPERATOR_FORMAT_NUMBER:
+                            gsmi_send_number(GSM_U32(msg->msg.cops_set.num), 0, 1);
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
             AT_PORT_SEND_END_AT();
