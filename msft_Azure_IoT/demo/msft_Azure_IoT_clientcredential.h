@@ -86,17 +86,28 @@
  *
  * To find account and device numbers:
  *   1 - Navigate to https://globalm2m.verizonwireless.com/manage/devices
- *   2 - Click the device you are testing
- *   3 - The IMEI and MDN are in the first box (Device identity)
- *   4 - The Service plan and billing section has the account number
- *   5 - Copy these numbers into the appropriate defines below
+ *   2 - Create a new view and include at least Account, IMEI, and MDN
+ *   3 - Note that MDN should be 10 digits (do not include leading 1)
+ *   4 - Copy these numbers into the appropriate defines below
  */
-#define THINGSPACE_KEY_SECRET    ""
-#define THINGSPACE_USER          ""
-#define THINGSPACE_PASSWORD      ""
-#define THINGSPACE_ACCOUNT_NUM   ""
-#define THINGSPACE_DEVICE_IMEI   ""
-#define THINGSPACE_DEVICE_MDN    ""
+
+//#define THINGSPACE_LOCATION_ENABLE  // uncomment (and fill missing defs below) to enable Verizon ThingSpace location updates
+
+#ifdef THINGSPACE_LOCATION_ENABLE
+
+    #define THINGSPACE_LOCATION_UPDATE_RATE ( 0 ) // minutes between location updates, set to 0 to disable (startup update only)
+
+    #define THINGSPACE_KEY_SECRET    ""
+    #define THINGSPACE_USER          ""
+    #define THINGSPACE_PASSWORD      ""
+    #define THINGSPACE_ACCOUNT_NUM   ""
+    #define THINGSPACE_DEVICE_IMEI   ""
+    #define THINGSPACE_DEVICE_MDN    ""
+
+    #define THINGSPACE_HTTP_PROF_ID        (1)
+    #define THINGSPACE_SSL_PROF_ID         (3)
+
+#endif
 
 
 #endif /* MSFT_AZURE_IOT_CLIENTCREDENTIAL_H_ */

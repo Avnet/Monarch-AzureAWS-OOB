@@ -595,7 +595,7 @@ typedef struct gsm_msg {
 			uint8_t version;					/*!< TLS Profile version */
 			const char * cipherSpecs;			/*!< Exact list of cipher suite to be used, 8-bit hexadecimal "0x" prefixed IANA numbers, semicolon delimited */
 			uint8_t certValidLevel;				/*!< Server certificate validation 8-bit field */
-			uint8_t caCertificateID;			/*!< Trusted Certificate Authority certificate ID, integer in range [0-19] */
+			int8_t caCertificateID;			/*!< Trusted Certificate Authority certificate ID, integer in range [0-19] */
 			int8_t clientCertificateID;		/*!< Client certificate ID, integer in range [0-19] */
 			int8_t clientPrivateKeyID;			/*!< Client private key ID, integer in range [0-19] */
 			const char * psk;					/*!< Pre-shared key used for connection (when a TLS_PSK_* cipher suite is used) */

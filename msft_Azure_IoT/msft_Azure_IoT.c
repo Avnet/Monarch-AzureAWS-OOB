@@ -141,11 +141,7 @@ char red_led_state[6];
 char green_led_state[6];
 char blue_led_state[6];
 
-#define THINGSPACE_LOCATION_ENABLE
-
 #ifdef THINGSPACE_LOCATION_ENABLE
-	#define THINGSPACE_LOCATION_UPDATE_RATE ( 3 ) // minutes between location updates, set to 0 to disable (startup update only)
-#endif
 
 static const char *thingspaceUrl = "thingspace.verizon.com";
 
@@ -161,6 +157,8 @@ static const char *locationBody = "{\"accountName\":\"" THINGSPACE_ACCOUNT_NUM "
 
 static const char *bearerPrefix = "accept: application/json@authorization: Bearer ";
 static const char *vz_m2mPrefix = "@VZ-M2M-Token: ";
+
+#endif
 
 typedef enum AZURE_TWIN_TASK_ST
 {
@@ -547,6 +545,8 @@ MQTTBool_t Azure_IoT_CallBack(void * pvPublishCallbackContext,
 	return eMQTTTrue;
 }
 
+#ifdef THINGSPACE_LOCATION_ENABLE
+
 static uint8_t http_do_post(const char            *endpoint,
                             uint8_t               post_param,
                             const char            *body,
@@ -556,7 +556,7 @@ static uint8_t http_do_post(const char            *endpoint,
 
 	timeout = 250;
 	gsm_http_response_reset();
-	CellIoT_lib_sendHTTP(1, 0, endpoint, strlen(body), post_param, header, body, NULL, NULL, 29 * 1000);
+	CellIoT_lib_sendHTTP(THINGSPACE_HTTP_PROF_ID, HTTP_CMD_POST, endpoint, strlen(body), post_param, header, body, NULL, NULL, 29 * 1000);
 	while (timeout != 0 && !gsm_http_response_is_ready()) {
 		vTaskDelay(pdMS_TO_TICKS(100));
 		timeout--;
@@ -564,7 +564,7 @@ static uint8_t http_do_post(const char            *endpoint,
 	if (timeout == 0) return 0;
 
 	timeout = 10;
-	CellIoT_lib_recvHTTP(1, NULL, NULL, 3000);
+	CellIoT_lib_recvHTTP(THINGSPACE_HTTP_PROF_ID, NULL, NULL, 3000);
 	while (timeout != 0 && !gsm_http_response_is_valid()) {
 		vTaskDelay(pdMS_TO_TICKS(100));
 		timeout--;
@@ -596,7 +596,7 @@ static uint8_t thingspace_location_update(void) {
 
 	gsm_http_response_t response;
 
-	if (!http_do_post(tokenEndpoint, 0, tokenBody, tokenHeader, &response)) {
+	if (!http_do_post(tokenEndpoint, HTTP_POST_URLENC, tokenBody, tokenHeader, &response)) {
 		AZURE_PRINTF(("Get ThingSpace location: token request failed\r\n"));
 		return 0;
 	}
@@ -611,7 +611,7 @@ static uint8_t thingspace_location_update(void) {
 	strcpy(bearerHeader, bearerPrefix);
 	strcat(bearerHeader, token_bearer);
 	AZURE_IOTC_FREE(token_bearer);
-	if (!http_do_post(loginEndpoint, 4, loginBody, bearerHeader, &response)) {
+	if (!http_do_post(loginEndpoint, HTTP_POST_JSON, loginBody, bearerHeader, &response)) {
 		AZURE_IOTC_FREE(bearerHeader);
 		AZURE_PRINTF(("Get ThingSpace location: login request failed\r\n"));
 		return 0;
@@ -630,7 +630,7 @@ static uint8_t thingspace_location_update(void) {
 	strcat(locationHeader, token_vz_m2m);
 	AZURE_IOTC_FREE(bearerHeader);
 	AZURE_IOTC_FREE(token_vz_m2m);
-	if (!http_do_post(locationEndpoint, 4, locationBody, locationHeader, &response)) {
+	if (!http_do_post(locationEndpoint, HTTP_POST_JSON, locationBody, locationHeader, &response)) {
 		AZURE_IOTC_FREE(locationHeader);
 		AZURE_PRINTF(("Get ThingSpace location: location request failed\r\n"));
 		return 0;
@@ -661,6 +661,8 @@ static uint8_t thingspace_location_update(void) {
 		return 0;
 	}
 }
+
+#endif  //THINGSPACE_LOCATION_ENABLE
 
 void prvmcsft_Azure_TwinTask( void * pvParameters )
 {
@@ -1412,8 +1414,8 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 					eAzure_SM_Task = AZURE_SM_CONNECT_TO_DPS;
 
 					// Configure HTTPS
-					CellIoT_lib_setTLSSecurityProfileCfg(3, 2, "", 0, 5, -1, -1, NULL, NULL, NULL, 3000);
-					CellIoT_lib_setTLSHostProfileCfg(1, thingspaceUrl, 443, 0, "", "", 1, 25, 0, 3, NULL, NULL, 3000);
+					CellIoT_lib_setTLSSecurityProfileCfg(THINGSPACE_SSL_PROF_ID, TLS_VERSION_1_1, "", TLS_CERT_NOT_VALIDATED, -1, -1, -1, NULL, NULL, NULL, 1);
+					CellIoT_lib_setHTTPConnectionCfg(THINGSPACE_HTTP_PROF_ID, thingspaceUrl, HTTP_PORT_HTTPS, HTTP_AUTH_NONE, "", "", HTTP_SSL_ENABLED, 25, HTTP_CID_DEFAULT, THINGSPACE_SSL_PROF_ID, NULL, NULL, 1);
 				} else {
 					eAzure_SM_Task = AZURE_SM_IDLE;
 

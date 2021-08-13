@@ -406,7 +406,7 @@ CellIoT_lib_setTLSSecurityProfileCfg(	uint8_t spId,
 										uint8_t version,
 										const char * cipherSpecs,
 										uint8_t certValidLevel,
-										uint8_t caCertificateID,
+										int8_t caCertificateID,
 										int8_t clientCertificateID,
 										int8_t clientPrivateKeyID,
 										const char * psk,
@@ -432,7 +432,7 @@ CellIoT_lib_setTLSSecurityProfileCfg(	uint8_t spId,
 }
 
 gsmr_t
-CellIoT_lib_setTLSHostProfileCfg(	uint8_t connID,
+CellIoT_lib_setHTTPConnectionCfg(	uint8_t connID,
 									const char* ip,						/*!< IP Address of the remote host port */
 									uint16_t rHostPort,					/*!< Remote host port contact */
 									uint8_t authType,					/*!< auth_type */

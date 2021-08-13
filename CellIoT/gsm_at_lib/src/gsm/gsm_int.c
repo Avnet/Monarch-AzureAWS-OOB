@@ -2713,23 +2713,23 @@ gsmi_initiate_cmd(gsm_msg_t* msg) {
 			gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.version), 0, 1);
 			gsmi_send_string(msg->msg.tls_security_profile_cfg.cipherSpecs, 1, 1, 1);
 			gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.certValidLevel), 0, 1);
-			gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.caCertificateID), 0, 1);
-			uint8_t flags = 0;
-			if (msg->msg.tls_security_profile_cfg.clientCertificateID >= 0) flags |= 0x01;
-			if (msg->msg.tls_security_profile_cfg.clientPrivateKeyID >= 0) flags |= 0x02;
-			if (msg->msg.tls_security_profile_cfg.psk != NULL) flags |= 0x04;
-			if (flags) {
-				if (flags & 0x01) {
+			if (msg->msg.tls_security_profile_cfg.certValidLevel > 0) {
+				if (msg->msg.tls_security_profile_cfg.caCertificateID >= 0) {
+					gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.caCertificateID), 0, 1);
+				} else {
+					gsmi_send_string("", 0, 0, 1);  // just put a comma
+				}
+				if (msg->msg.tls_security_profile_cfg.clientCertificateID >= 0) {
 					gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.clientCertificateID), 0, 1);
 				} else {
 					gsmi_send_string("", 0, 0, 1);  // just put a comma
 				}
-				if (flags & 0x02) {
+				if (msg->msg.tls_security_profile_cfg.clientPrivateKeyID >= 0) {
 					gsmi_send_number(GSM_U32(msg->msg.tls_security_profile_cfg.clientPrivateKeyID), 0, 1);
 				} else {
 					gsmi_send_string("", 0, 0, 1);  // just put a comma
 				}
-				if (flags & 0x04) {
+				if (msg->msg.tls_security_profile_cfg.psk != NULL) {
 					gsmi_send_string(msg->msg.tls_security_profile_cfg.psk, 1, 1, 1);
 				}
 			}
