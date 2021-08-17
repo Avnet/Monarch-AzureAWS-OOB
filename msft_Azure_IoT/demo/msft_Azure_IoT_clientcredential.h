@@ -91,11 +91,13 @@
  *   4 - Copy these numbers into the appropriate defines below
  */
 
-//#define THINGSPACE_LOCATION_ENABLE  // uncomment (and fill missing defs below) to enable Verizon ThingSpace location updates
+/* Please note that each location update will consume ~25kB of data */
+// #define THINGSPACE_LOCATION_ENABLE  // uncomment (and fill missing defs below) to enable Verizon ThingSpace location updates
 
 #ifdef THINGSPACE_LOCATION_ENABLE
 
-    #define THINGSPACE_LOCATION_UPDATE_RATE ( 0 ) // minutes between location updates, set to 0 to disable (startup update only)
+    // #define THINGSPACE_LOCATION_BUTTON_TRIGGER      // uncomment to enable SW1 button to trigger a location update
+    // #define THINGSPACE_LOCATION_UPDATE_RATE ( 30 )  // uncomment to enable auto updates (value is minutes between updates)
 
     #define THINGSPACE_KEY_SECRET    ""
     #define THINGSPACE_USER          ""

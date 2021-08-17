@@ -25,14 +25,67 @@ extern "C" {
  */
 void BOARD_InitBootPins(void);
 
-#define IOCON_PIO_DIGITAL_EN 0x0100u  /*!<@brief Enables digital function */
-#define IOCON_PIO_FUNC0 0x00u         /*!<@brief Selects pin function 0 */
-#define IOCON_PIO_FUNC1 0x01u         /*!<@brief Selects pin function 1 */
-#define IOCON_PIO_FUNC5 0x05u         /*!<@brief Selects pin function 5 */
-#define IOCON_PIO_INV_DI 0x00u        /*!<@brief Input function is not inverted */
-#define IOCON_PIO_MODE_INACT 0x00u    /*!<@brief No addition pin function */
-#define IOCON_PIO_OPENDRAIN_DI 0x00u  /*!<@brief Open drain is disabled */
-#define IOCON_PIO_SLEW_STANDARD 0x00u /*!<@brief Standard mode, output slew rate control is enabled */
+/*!
+ * @brief Enables digital function */
+#define IOCON_PIO_DIGITAL_EN 0x0100u
+/*!
+ * @brief Selects pin function 0 */
+#define IOCON_PIO_FUNC0 0x00u
+/*!
+ * @brief Selects pin function 1 */
+#define IOCON_PIO_FUNC1 0x01u
+/*!
+ * @brief Selects pin function 5 */
+#define IOCON_PIO_FUNC5 0x05u
+/*!
+ * @brief Input function is not inverted */
+#define IOCON_PIO_INV_DI 0x00u
+/*!
+ * @brief No addition pin function */
+#define IOCON_PIO_MODE_INACT 0x00u
+/*!
+ * @brief Open drain is disabled */
+#define IOCON_PIO_OPENDRAIN_DI 0x00u
+/*!
+ * @brief Standard mode, output slew rate control is enabled */
+#define IOCON_PIO_SLEW_STANDARD 0x00u
+/*!
+ * @brief
+ * Analog switch input control.
+ * : For all pins except PIO0_9, PIO0_11, PIO0_12, PIO0_15, PIO0_18, PIO0_31, PIO1_0 and PIO1_9 analog switch is
+ * closed (enabled).
+ */
+#define PIO0_23_ASW_VALUE1 0x01u
+/*!
+ * @brief Select Digital mode.: Disable digital mode. Digital input set to 0. */
+#define PIO0_23_DIGIMODE_ANALOG 0x00u
+/*!
+ * @brief Selects pin function.: Alternative connection 0. */
+#define PIO0_23_FUNC_ALT0 0x00u
+/*!
+ * @brief
+ * Selects function mode (on-chip pull-up/pull-down resistor control).
+ * : Inactive.
+ * Inactive (no pull-down/pull-up resistor enabled).
+ */
+#define PIO0_23_MODE_INACTIVE 0x00u
+/*!
+ * @brief Select Digital mode.: Enable Digital mode. Digital input is enabled. */
+#define PIO0_5_DIGIMODE_DIGITAL 0x01u
+/*!
+ * @brief Selects pin function.: Alternative connection 0. */
+#define PIO0_5_FUNC_ALT0 0x00u
+
+/*! @name PIO0_5 (number 88), DEV_SW1
+  @{ */
+
+/* Symbols to be used with GPIO driver */
+#define BOARD_INITPINS_DEV_SW1_GPIO GPIO                /*!<@brief GPIO peripheral base pointer */
+#define BOARD_INITPINS_DEV_SW1_GPIO_PIN_MASK (1U << 5U) /*!<@brief GPIO pin mask */
+#define BOARD_INITPINS_DEV_SW1_PORT 0U                  /*!<@brief PORT peripheral base pointer */
+#define BOARD_INITPINS_DEV_SW1_PIN 5U                   /*!<@brief PORT pin number */
+#define BOARD_INITPINS_DEV_SW1_PIN_MASK (1U << 5U)      /*!<@brief PORT pin mask */
+                                                        /* @} */
 
 /*!
  * @brief Configures pin routing and optionally pin electrical features.
@@ -126,24 +179,36 @@ void BOARD_InitGT202Shield(void); /* Function assigned for the Cortex-M33 (Core 
 
 /*! @name PIO0_16 (number 14), KFETON
   @{ */
-#define BOARD_INITSILEX2401SHIELD_KFETON_ID_GPIO GPIO /*!<@brief GPIO device name: GPIO */
-#define BOARD_INITSILEX2401SHIELD_KFETON_ID_PORT 0U   /*!<@brief PORT device name: 0U */
-#define BOARD_INITSILEX2401SHIELD_KFETON_ID_PIN 16U   /*!<@brief 0U pin index: 16 */
-                                                      /* @} */
+
+/* Symbols to be used with GPIO driver */
+#define BOARD_INITSILEX2401SHIELD_KFETON_ID_GPIO GPIO                 /*!<@brief GPIO peripheral base pointer */
+#define BOARD_INITSILEX2401SHIELD_KFETON_ID_GPIO_PIN_MASK (1U << 16U) /*!<@brief GPIO pin mask */
+#define BOARD_INITSILEX2401SHIELD_KFETON_ID_PORT 0U                   /*!<@brief PORT peripheral base pointer */
+#define BOARD_INITSILEX2401SHIELD_KFETON_ID_PIN 16U                   /*!<@brief PORT pin number */
+#define BOARD_INITSILEX2401SHIELD_KFETON_ID_PIN_MASK (1U << 16U)      /*!<@brief PORT pin mask */
+                                                                      /* @} */
 
 /*! @name PIO1_5 (number 31), PWRON
   @{ */
-#define BOARD_INITSILEX2401SHIELD_PWRON_ID_GPIO GPIO /*!<@brief GPIO device name: GPIO */
-#define BOARD_INITSILEX2401SHIELD_PWRON_ID_PORT 1U   /*!<@brief PORT device name: 1U */
-#define BOARD_INITSILEX2401SHIELD_PWRON_ID_PIN 5U    /*!<@brief 1U pin index: 5 */
-                                                     /* @} */
+
+/* Symbols to be used with GPIO driver */
+#define BOARD_INITSILEX2401SHIELD_PWRON_ID_GPIO GPIO                /*!<@brief GPIO peripheral base pointer */
+#define BOARD_INITSILEX2401SHIELD_PWRON_ID_GPIO_PIN_MASK (1U << 5U) /*!<@brief GPIO pin mask */
+#define BOARD_INITSILEX2401SHIELD_PWRON_ID_PORT 1U                  /*!<@brief PORT peripheral base pointer */
+#define BOARD_INITSILEX2401SHIELD_PWRON_ID_PIN 5U                   /*!<@brief PORT pin number */
+#define BOARD_INITSILEX2401SHIELD_PWRON_ID_PIN_MASK (1U << 5U)      /*!<@brief PORT pin mask */
+                                                                    /* @} */
 
 /*! @name PIO1_18 (number 64), IRQ
   @{ */
-#define BOARD_INITSILEX2401SHIELD_IRQ_ID_GPIO GPIO /*!<@brief GPIO device name: GPIO */
-#define BOARD_INITSILEX2401SHIELD_IRQ_ID_PORT 1U   /*!<@brief PORT device name: 1U */
-#define BOARD_INITSILEX2401SHIELD_IRQ_ID_PIN 18U   /*!<@brief 1U pin index: 18 */
-                                                   /* @} */
+
+/* Symbols to be used with GPIO driver */
+#define BOARD_INITSILEX2401SHIELD_IRQ_ID_GPIO GPIO                 /*!<@brief GPIO peripheral base pointer */
+#define BOARD_INITSILEX2401SHIELD_IRQ_ID_GPIO_PIN_MASK (1U << 18U) /*!<@brief GPIO pin mask */
+#define BOARD_INITSILEX2401SHIELD_IRQ_ID_PORT 1U                   /*!<@brief PORT peripheral base pointer */
+#define BOARD_INITSILEX2401SHIELD_IRQ_ID_PIN 18U                   /*!<@brief PORT pin number */
+#define BOARD_INITSILEX2401SHIELD_IRQ_ID_PIN_MASK (1U << 18U)      /*!<@brief PORT pin mask */
+                                                                   /* @} */
 
 /*!
  * @brief Configures pin routing and optionally pin electrical features.

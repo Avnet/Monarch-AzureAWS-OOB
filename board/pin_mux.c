@@ -7,11 +7,11 @@
 /*
  * TEXT BELOW IS USED AS SETTING FOR TOOLS *************************************
 !!GlobalInfo
-product: Pins v7.0
+product: Pins v9.0
 processor: LPC55S69
 package_id: LPC55S69JBD100
 mcu_data: ksdk2_0
-processor_version: 7.0.1
+processor_version: 9.0.3
 pin_labels:
 - {pin_num: '10', pin_signal: PIO1_9/FC1_SCK/CT_INP4/SCT0_OUT2/FC4_CTS_SDA_SSEL0/ADC0_12, label: IQR}
 - {pin_num: '14', pin_signal: PIO0_16/FC4_TXD_SCL_MISO_WS/CLKOUT/CT_INP4/SECURE_GPIO0_16/ADC0_8, label: KFETON, identifier: KFETON_ID}
@@ -23,6 +23,7 @@ pin_labels:
 - {pin_num: '85', pin_signal: PIO1_27/FC2_RTS_SCL_SSEL1/SD0_D4/CTIMER0_MAT3/CLKOUT/PLU_IN4, label: USART2 RTS}
 - {pin_num: '56', pin_signal: PIO0_18/FC4_CTS_SDA_SSEL0/SD0_WR_PRT/CTIMER1_MAT0/SCT0_OUT1/PLU_IN3/SECURE_GPIO0_18/ACMP0_C, label: SKY_nRESET}
 - {pin_num: '40', pin_signal: PIO1_10/FC1_RXD_SDA_MOSI_DATA/CTIMER1_MAT0/SCT0_OUT3, label: SKY_RING}
+- {pin_num: '88', pin_signal: PIO0_5/FC4_RXD_SDA_MOSI_DATA/CTIMER3_MAT0/SCT_GPI5/FC3_RTS_SCL_SSEL1/MCLK/SECURE_GPIO0_5, label: DEV_SW1, identifier: DEV_SW1}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
 /* clang-format on */
@@ -59,6 +60,8 @@ BOARD_InitPins:
     slew_rate: standard, invert: disabled, open_drain: disabled}
   - {pin_num: '5', peripheral: GPIO, signal: 'PIO1, 6', pin_signal: PIO1_6/FC0_TXD_SCL_MISO_WS/SD0_D3/CTIMER2_MAT1/SCT_GPI3, mode: inactive, slew_rate: standard,
     invert: disabled, open_drain: disabled}
+  - {pin_num: '20', peripheral: ADC0, signal: 'CH, 0', pin_signal: PIO0_23/MCLK/CTIMER1_MAT2/CTIMER3_MAT3/SCT0_OUT4/FC0_CTS_SDA_SSEL0/SD1_D1/SECURE_GPIO0_23/ADC0_0}
+  - {pin_num: '88', peripheral: GPIO, signal: 'PIO0, 5', pin_signal: PIO0_5/FC4_RXD_SDA_MOSI_DATA/CTIMER3_MAT0/SCT_GPI5/FC3_RTS_SCL_SSEL1/MCLK/SECURE_GPIO0_5, direction: INPUT}
  * BE CAREFUL MODIFYING THIS COMMENT - IT IS YAML SETTINGS FOR TOOLS ***********
  */
 /* clang-format on */
@@ -74,6 +77,46 @@ void BOARD_InitPins(void)
 {
     /* Enables the clock for the I/O controller.: Enable Clock. */
     CLOCK_EnableClock(kCLOCK_Iocon);
+
+    /* Enables the clock for the GPIO0 module */
+    CLOCK_EnableClock(kCLOCK_Gpio0);
+
+    gpio_pin_config_t DEV_SW1_config = {
+        .pinDirection = kGPIO_DigitalInput,
+        .outputLogic = 0U
+    };
+    /* Initialize GPIO functionality on pin PIO0_5 (pin 88)  */
+    GPIO_PinInit(BOARD_INITPINS_DEV_SW1_GPIO, BOARD_INITPINS_DEV_SW1_PORT, BOARD_INITPINS_DEV_SW1_PIN, &DEV_SW1_config);
+
+    gpio_pin_config_t gpio0_pin20_config = {
+        .pinDirection = kGPIO_DigitalInput,
+        .outputLogic = 0U
+    };
+    /* Initialize GPIO functionality on pin PIO0_23 (pin 20)  */
+    GPIO_PinInit(GPIO, 0U, 23U, &gpio0_pin20_config);
+
+    IOCON->PIO[0][23] = ((IOCON->PIO[0][23] &
+                          /* Mask bits to zero which are setting */
+                          (~(IOCON_PIO_FUNC_MASK | IOCON_PIO_MODE_MASK | IOCON_PIO_DIGIMODE_MASK | IOCON_PIO_ASW_MASK)))
+
+                         /* Selects pin function.
+                          * : PORT023 (pin 20) is configured as ADC0_0. */
+                         | IOCON_PIO_FUNC(PIO0_23_FUNC_ALT0)
+
+                         /* Selects function mode (on-chip pull-up/pull-down resistor control).
+                          * : Inactive.
+                          * Inactive (no pull-down/pull-up resistor enabled). */
+                         | IOCON_PIO_MODE(PIO0_23_MODE_INACTIVE)
+
+                         /* Select Digital mode.
+                          * : Disable digital mode.
+                          * Digital input set to 0. */
+                         | IOCON_PIO_DIGIMODE(PIO0_23_DIGIMODE_ANALOG)
+
+                         /* Analog switch input control.
+                          * : For all pins except PIO0_9, PIO0_11, PIO0_12, PIO0_15, PIO0_18, PIO0_31, PIO1_0 and
+                          * PIO1_9 analog switch is closed (enabled). */
+                         | IOCON_PIO_ASW(PIO0_23_ASW_VALUE1));
 
     const uint32_t port0_pin29_config = (/* Pin is configured as FC0_RXD_SDA_MOSI_DATA */
                                          IOCON_PIO_FUNC1 |
@@ -104,6 +147,19 @@ void BOARD_InitPins(void)
                                          IOCON_PIO_OPENDRAIN_DI);
     /* PORT0 PIN30 (coords: 94) is configured as FC0_TXD_SCL_MISO_WS */
     IOCON_PinMuxSet(IOCON, 0U, 30U, port0_pin30_config);
+
+    IOCON->PIO[0][5] = ((IOCON->PIO[0][5] &
+                         /* Mask bits to zero which are setting */
+                         (~(IOCON_PIO_FUNC_MASK | IOCON_PIO_DIGIMODE_MASK)))
+
+                        /* Selects pin function.
+                         * : PORT05 (pin 88) is configured as PIO0_5. */
+                        | IOCON_PIO_FUNC(PIO0_5_FUNC_ALT0)
+
+                        /* Select Digital mode.
+                         * : Enable Digital mode.
+                         * Digital input is enabled. */
+                        | IOCON_PIO_DIGIMODE(PIO0_5_DIGIMODE_DIGITAL));
 
     const uint32_t port1_pin20_config = (/* Pin is configured as FC4_TXD_SCL_MISO_WS */
                                          IOCON_PIO_FUNC5 |

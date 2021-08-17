@@ -201,7 +201,6 @@ static MQTTAgentSubscribeParams_t xSubscribeParams;
 static MQTTAgentPublishParams_t xPublishParameters;
 EventGroupHandle_t xCreatedEventGroup;
 TimerHandle_t xTelemetryPublishTimer;
-TimerHandle_t xLocationUpdateTimer;
 EventBits_t uxBits;
 bool bIsStartUpPhase = true;
 #define EVENT_BIT_MASK	( 1 << 0 )
@@ -308,12 +307,6 @@ void vTimerCallback( TimerHandle_t xTimer )
 
    xEventGroupSetBits(xCreatedEventGroup, TELEMETRY_PUB_BIT_MASK);
 
-}
-
-void vLocationUpdateTimerCallback( TimerHandle_t xTimer )
-{
-   configASSERT( xTimer );
-   xEventGroupSetBits(xCreatedEventGroup, LOCATION_UPDATE_BIT_MASK);
 }
 
 void deviceRegistrationCallback(char * propertyName, char * payload, size_t payload_len)
@@ -661,6 +654,29 @@ static uint8_t thingspace_location_update(void) {
 	}
 }
 
+#ifdef THINGSPACE_LOCATION_BUTTON_TRIGGER
+TimerHandle_t xLocationButtonMonitor;
+void vLocationButtonMonitorCallback( TimerHandle_t xTimer )
+{
+	configASSERT( xTimer );
+	static bool prev_state = false;
+	bool curr_state = !GPIO_PinRead(BOARD_SW1_GPIO, BOARD_SW1_GPIO_PORT, BOARD_SW1_GPIO_PIN);
+	if (curr_state && !prev_state) {
+		xEventGroupSetBits(xCreatedEventGroup, LOCATION_UPDATE_BIT_MASK);
+	}
+	prev_state = curr_state;
+}
+#endif
+
+#if THINGSPACE_LOCATION_UPDATE_RATE
+TimerHandle_t xLocationUpdateTimer;
+void vLocationUpdateTimerCallback( TimerHandle_t xTimer )
+{
+	configASSERT( xTimer );
+	xEventGroupSetBits(xCreatedEventGroup, LOCATION_UPDATE_BIT_MASK);
+}
+#endif
+
 #endif  //THINGSPACE_LOCATION_ENABLE
 
 static void update_connection_info(void) {
@@ -706,10 +722,10 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
     if ((end = strpbrk(imei, "\r\n"))) *end = '\0';
     if ((end = strpbrk(modem_fw, "\r\n"))) *end = '\0';
 
-    configPRINTF(("IMEI:  %s\r\n", imei));
+    configPRINTF(("IMEI: %s\r\n", imei));
     configPRINTF(("ICCID: %s\r\n", iccid));
-    configPRINTF(("FW:    %s\r\n", modem_fw));
-    configPRINTF(("NUM:   %s\r\n", device_id));
+    configPRINTF(("FW: %s\r\n", modem_fw));
+    configPRINTF(("NUM: %s\r\n", device_id));
 
     /* Initialize common libraries required by demo. */
 	if (IotSdk_Init() != true)
@@ -757,21 +773,27 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 #endif
 #endif
 
-#ifdef THINGSPACE_LOCATION_ENABLE
-    eAzure_SM_Task = AZURE_SM_LOCATION_UPDATE;
-#else
-    eAzure_SM_Task = AZURE_SM_CONNECT_TO_DPS;
-#endif
+	eAzure_SM_Task = AZURE_SM_CONNECT_TO_DPS;
 
-    xCreatedEventGroup = xEventGroupCreate();
-    xTelemetryPublishTimer = xTimerCreate( "Telemetry Publish Timer",
+	xCreatedEventGroup = xEventGroupCreate();
+	xTelemetryPublishTimer = xTimerCreate( "Telemetry Publish Timer",
 											pdMS_TO_TICKS(60000),
 											pdFALSE,
 											( void * ) 0,
 											vTimerCallback );
 
+#ifdef THINGSPACE_LOCATION_BUTTON_TRIGGER
+	xLocationButtonMonitor = xTimerCreate( "Location Button Monitor",
+											pdMS_TO_TICKS(20),
+											pdTRUE,
+											( void * ) 0,
+											vLocationButtonMonitorCallback );
+	xTimerStart( xLocationButtonMonitor, 0 );
+#endif
+
 #if THINGSPACE_LOCATION_UPDATE_RATE
-    xLocationUpdateTimer = xTimerCreate( "Location Update Timer",
+	eAzure_SM_Task = AZURE_SM_LOCATION_UPDATE;
+	xLocationUpdateTimer = xTimerCreate( "Location Update Timer",
 											pdMS_TO_TICKS(60 * 1000),
 											pdFALSE,
 											( void * ) 0,
@@ -1451,12 +1473,14 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 				} else {
 					eAzure_SM_Task = AZURE_SM_IDLE;
 
+#if THINGSPACE_LOCATION_UPDATE_RATE
 					static uint32_t update_delay = 0;
 					if (++update_delay == THINGSPACE_LOCATION_UPDATE_RATE) {
 						update_delay = 0;
 					} else {
 						break;
 					}
+#endif
 				}
 
 				if (thingspace_location_update()) {
@@ -1468,11 +1492,11 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 				break;
 #endif
 
-    		case AZURE_SM_IDLE:
-    			if( xTimerIsTimerActive( xTelemetryPublishTimer ) == pdFALSE )
-    			{
-    				xTimerStart( xTelemetryPublishTimer, 0 );
-    			}
+			case AZURE_SM_IDLE:
+				if( xTimerIsTimerActive( xTelemetryPublishTimer ) == pdFALSE )
+				{
+					xTimerStart( xTelemetryPublishTimer, 0 );
+				}
 
 #if THINGSPACE_LOCATION_UPDATE_RATE
 				if( xTimerIsTimerActive( xLocationUpdateTimer ) == pdFALSE )
@@ -1481,13 +1505,13 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 				}
 #endif
 
-    			uxBits = xEventGroupWaitBits(xCreatedEventGroup,
+				uxBits = xEventGroupWaitBits(xCreatedEventGroup,
 											LED_UPDATE_BIT_MASK | TELEMETRY_PUB_BIT_MASK | LOCATION_UPDATE_BIT_MASK,
 											 pdTRUE,
 											 pdFALSE,
 											 pdMS_TO_TICKS( 120000UL ));
 
-    			if( ( uxBits & LED_UPDATE_BIT_MASK ) != 0 )
+				if( ( uxBits & LED_UPDATE_BIT_MASK ) != 0 )
 				{
 					eAzure_SM_Task = AZURE_SM_PUB_SET_LED_PROPERTIES;
 				}
@@ -1504,16 +1528,16 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 					/* Do nothing */
 				}
 
-    			break;
+				break;
 
-    		default:
-    	    	AZURE_PRINTF( ( "Invalid Application State!! \r\n" ) );
-    	    	AZURE_PRINTF( ( "Closing Azure Demo\r\n" ) );
-    	    	vTaskDelete(NULL);
-    			break;
+			default:
+				AZURE_PRINTF( ( "Invalid Application State!! \r\n" ) );
+				AZURE_PRINTF( ( "Closing Azure Demo\r\n" ) );
+				vTaskDelete(NULL);
+				break;
 
-    	}
-    }
+		}
+	}
 
 }
 
@@ -1521,7 +1545,7 @@ void vStartAzureLedDemoTask( void )
 {
     ( void ) xTaskCreate( prvmcsft_Azure_TwinTask,
                           "Microsoft Azure Twin Task",
-						  AzureTwin_DemoUPDATE_TASK_STACK_SIZE,
+                          AzureTwin_DemoUPDATE_TASK_STACK_SIZE,
                           NULL,
                           tskIDLE_PRIORITY,
                           NULL );
