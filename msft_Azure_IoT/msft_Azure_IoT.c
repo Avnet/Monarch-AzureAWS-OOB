@@ -37,6 +37,11 @@
 #include "fsl_mma.h"
 #endif
 
+#ifdef MOD_MEASURE_CURRENT
+#include "fsl_power.h"
+#include "fsl_lpadc.h"
+#endif
+
 #if defined(BOARD_ACCEL_FXOS) || defined(BOARD_ACCEL_MMA)
 /* Type definition of structure for data from the accelerometer */
 typedef struct
@@ -105,9 +110,9 @@ char device_id[32];
 	"}"
 
 vector_t accel_vector;
-double light_sensor = 78.9;
+double light_sensor;
 bool button = false;
-double current =  9.87;
+double current;
 
 #define Device_Location_Telemetry_JSON 		\
 	"{"										\
@@ -139,6 +144,14 @@ double alt = 0;
 char red_led_state[6];
 char green_led_state[6];
 char blue_led_state[6];
+
+#ifdef MOD_MEASURE_CURRENT
+	#define MEASURE_CURRENT_LPADC_BASE          ADC0
+	#define MEASURE_CURRENT_LPADC_USER_CHANNEL  0U
+	#define MEASURE_CURRENT_LPADC_USER_CMDID    1U
+
+	lpadc_conv_result_t lpadc_result;
+#endif
 
 #ifdef THINGSPACE_LOCATION_ENABLE
 
@@ -726,6 +739,32 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
     configPRINTF(("ICCID: %s\r\n", iccid));
     configPRINTF(("FW: %s\r\n", modem_fw));
     configPRINTF(("NUM: %s\r\n", device_id));
+
+#ifdef MOD_MEASURE_CURRENT
+    CLOCK_SetClkDiv(kCLOCK_DivAdcAsyncClk, 8U, true);
+    CLOCK_AttachClk(kMAIN_CLK_to_ADC_CLK);
+    POWER_DisablePD(kPDRUNCFG_PD_LDOGPADC);
+
+    lpadc_config_t lpadc_config;
+    LPADC_GetDefaultConfig(&lpadc_config);
+    lpadc_config.enableAnalogPreliminary = true;
+    lpadc_config.referenceVoltageSource = kLPADC_ReferenceVoltageAlt2;
+    lpadc_config.conversionAverageMode = kLPADC_ConversionAverage128;
+    LPADC_Init(MEASURE_CURRENT_LPADC_BASE, &lpadc_config);
+    LPADC_DoOffsetCalibration(MEASURE_CURRENT_LPADC_BASE);
+    LPADC_DoAutoCalibration(MEASURE_CURRENT_LPADC_BASE);
+
+    lpadc_conv_command_config_t lpadc_command_config;
+    LPADC_GetDefaultConvCommandConfig(&lpadc_command_config);
+    lpadc_command_config.channelNumber = MEASURE_CURRENT_LPADC_USER_CHANNEL;
+    LPADC_SetConvCommandConfig(MEASURE_CURRENT_LPADC_BASE, MEASURE_CURRENT_LPADC_USER_CMDID, &lpadc_command_config);
+
+    lpadc_conv_trigger_config_t lpadc_trigger_config;
+    LPADC_GetDefaultConvTriggerConfig(&lpadc_trigger_config);
+    lpadc_trigger_config.targetCommandId       = MEASURE_CURRENT_LPADC_USER_CMDID;
+    lpadc_trigger_config.enableHardwareTrigger = false;
+    LPADC_SetConvTriggerConfig(MEASURE_CURRENT_LPADC_BASE, 0U, &lpadc_trigger_config);
+#endif
 
     /* Initialize common libraries required by demo. */
 	if (IotSdk_Init() != true)
@@ -1355,7 +1394,7 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 
     			break;
 
-    		case AZURE_SM_PUB_SENSOR_TELEMETRY:
+			case AZURE_SM_PUB_SENSOR_TELEMETRY:
 				vTaskDelay(pdMS_TO_TICKS(1000));
 
 				if(readAccelData(&accel_vector))
@@ -1365,11 +1404,17 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 					accel_vector.A_z = 0;
 				}
 
+#ifdef MOD_MEASURE_CURRENT
+				LPADC_DoSoftwareTrigger(MEASURE_CURRENT_LPADC_BASE, 1U);
+				while (!LPADC_GetConvResult(MEASURE_CURRENT_LPADC_BASE, &lpadc_result, 0U)) {}
+				current = ((lpadc_result.convValue) >> 3);
+#endif
+
 				memset(&(xPublishParameters), 0x00, sizeof(xPublishParameters));
 				memset(cTopic, 0, sizeof(cTopic));
 				memset(cPayload, 0, sizeof(cPayload));
 
-                sprintf(cTopic, AZURE_IOT_TELEMETRY_TOPIC_FOR_PUB, clientcredentialAZURE_IOT_DEVICE_ID);
+				sprintf(cTopic, AZURE_IOT_TELEMETRY_TOPIC_FOR_PUB, clientcredentialAZURE_IOT_DEVICE_ID);
 				sprintf(cPayload, Device_Sensor_Telemetry_JSON, accel_vector.A_x , accel_vector.A_y, accel_vector.A_z, light_sensor, gsm.m.rssi, current, button);
 
 				xPublishParameters.pucTopic = (const uint8_t *)cTopic;
@@ -1394,14 +1439,14 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 
 				break;
 
-    		case AZURE_SM_PUB_LOC_TELEMETRY:
+			case AZURE_SM_PUB_LOC_TELEMETRY:
 				vTaskDelay(pdMS_TO_TICKS(1000));
 
 				memset(&(xPublishParameters), 0x00, sizeof(xPublishParameters));
 				memset(cTopic, 0, sizeof(cTopic));
 				memset(cPayload, 0, sizeof(cPayload));
 
-                sprintf(cTopic, AZURE_IOT_TELEMETRY_TOPIC_FOR_PUB, clientcredentialAZURE_IOT_DEVICE_ID);
+				sprintf(cTopic, AZURE_IOT_TELEMETRY_TOPIC_FOR_PUB, clientcredentialAZURE_IOT_DEVICE_ID);
 				sprintf(cPayload, Device_Location_Telemetry_JSON, lat, lon, alt);
 
 				xPublishParameters.pucTopic = (const uint8_t *)cTopic;
@@ -1426,7 +1471,7 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 
 				break;
 
-    		case AZURE_SM_PUB_CELLULAR_TELEMETRY:
+			case AZURE_SM_PUB_CELLULAR_TELEMETRY:
 				vTaskDelay(pdMS_TO_TICKS(1000));
 
 				memset(&(xPublishParameters), 0x00, sizeof(xPublishParameters));
@@ -1435,7 +1480,7 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 
 				update_connection_info();
 
-                sprintf(cTopic, AZURE_IOT_TELEMETRY_TOPIC_FOR_PUB, clientcredentialAZURE_IOT_DEVICE_ID);
+				sprintf(cTopic, AZURE_IOT_TELEMETRY_TOPIC_FOR_PUB, clientcredentialAZURE_IOT_DEVICE_ID);
 				sprintf(cPayload, Device_Cellular_Telemetry_JSON, mcc , mnc, lac, cid, iccid, imei, modem_fw, device_id);
 
 				xPublishParameters.pucTopic = (const uint8_t *)cTopic;
