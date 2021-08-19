@@ -336,10 +336,10 @@ int main(void)
     BOARD_InitLEDs();
     CRYPTO_InitHardware();
 
-#if defined(BOARD_ACCEL_FXOS) || defined(BOARD_ACCEL_MMA)
     /* Initialize I2C */
     BOARD_Accel_I2C_Init();
 
+#if defined(BOARD_ACCEL_FXOS) || defined(BOARD_ACCEL_MMA)
     /* Initialize magnetometer and accelerometer */
     if (kStatus_Success != init_mag_accel(&g_accelDataScale, &g_accelResolution))
     {

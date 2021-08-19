@@ -29,6 +29,7 @@
 #include "gsm_private.h"
 #include "CellIoT_lib.h"
 #include "gsm_http.h"
+#include "fsl_i2c.h"
 
 /* Board specific accelerometer driver include */
 #if defined(BOARD_ACCEL_FXOS)
@@ -144,6 +145,31 @@ double alt = 0;
 char red_led_state[6];
 char green_led_state[6];
 char blue_led_state[6];
+
+static bool lux_sensor_initialized;
+
+#define LUX_SENSOR_BASE      I2C4
+#define LUX_SENSOR_ADDR      0x10
+
+#define LUX_SENSOR_CFG_REG   0
+#define LUX_SENSOR_WH_REG    1
+#define LUX_SENSOR_WL_REG    2
+#define LUX_SENSOR_PSM_REG   3
+#define LUX_SENSOR_ALS_REG   4
+#define LUX_SENSOR_WHITE_REG 5
+#define LUX_SENSOR_INT_REG   6
+
+#define LUX_SENSOR_CFG_VALUE 0x1000  // see note below
+#define LUX_SENSOR_PSM_VALUE 0x0007  // mode 4, enabled
+
+#define LUX_SENSOR_RESOLUTION (0.4608)
+
+/*
+ * Lux sensor config register values:
+ *   bits: 000 |  10  | 0 |  0000  |  00  | 00 |     0    |     0
+ *   name: xxx | GAIN | x |   IT   | PERS | xx |  INT_EN  |    SD
+ *  value:     | .125 |   | 100 ms |   1  |    | disabled | power-on
+ */
 
 #ifdef MOD_MEASURE_CURRENT
 	#define MEASURE_CURRENT_LPADC_BASE          ADC0
@@ -550,6 +576,96 @@ MQTTBool_t Azure_IoT_CallBack(void * pvPublishCallbackContext,
 	return eMQTTTrue;
 }
 
+static status_t lux_sensor_write(uint8_t command, uint16_t data) {
+	uint8_t buf[] = { command, data & 0xFF, data >> 8 };
+
+	i2c_master_transfer_t xfer = {
+		.slaveAddress   = LUX_SENSOR_ADDR,
+		.direction      = kI2C_Write,
+		.subaddress     = 0,
+		.subaddressSize = 0,
+		.data           = buf,
+		.dataSize       = sizeof(buf),
+		.flags          = kI2C_TransferDefaultFlag,
+	};
+
+	return I2C_MasterTransferBlocking(LUX_SENSOR_BASE, &xfer);
+}
+
+static status_t lux_sensor_read(uint8_t command, uint16_t *data) {
+	status_t status;
+
+	uint8_t bufWrite[] = { command };
+	i2c_master_transfer_t xferWrite = {
+		.slaveAddress   = LUX_SENSOR_ADDR,
+		.direction      = kI2C_Write,
+		.subaddress     = 0,
+		.subaddressSize = 0,
+		.data           = bufWrite,
+		.dataSize       = sizeof(bufWrite),
+		.flags          = kI2C_TransferNoStopFlag,
+	};
+	status = I2C_MasterTransferBlocking(LUX_SENSOR_BASE, &xferWrite);
+	if (status != kStatus_Success) return status;
+
+	uint8_t bufRead[2];
+	i2c_master_transfer_t xferRead = {
+		.slaveAddress   = LUX_SENSOR_ADDR,
+		.direction      = kI2C_Read,
+		.subaddress     = 0,
+		.subaddressSize = 0,
+		.data           = bufRead,
+		.dataSize       = sizeof(bufRead),
+		.flags          = kI2C_TransferDefaultFlag,
+	};
+	status = I2C_MasterTransferBlocking(LUX_SENSOR_BASE, &xferRead);
+	if (status != kStatus_Success) return status;
+
+	*data = (bufRead[1] << 8) | (bufRead[0]);
+	return status;
+}
+
+static status_t lux_sensor_initialize(void) {
+	status_t status;
+
+	status = lux_sensor_write(LUX_SENSOR_CFG_REG, LUX_SENSOR_CFG_VALUE);
+	if (status != kStatus_Success) return status;
+
+	status = lux_sensor_write(LUX_SENSOR_PSM_REG, LUX_SENSOR_PSM_VALUE);
+	if (status != kStatus_Success) return status;
+
+	uint16_t readback;
+
+	status = lux_sensor_read(LUX_SENSOR_CFG_REG, &readback);
+	if (status != kStatus_Success) return status;
+	if (readback != LUX_SENSOR_CFG_VALUE) return kStatus_Fail;
+
+	status = lux_sensor_read(LUX_SENSOR_PSM_REG, &readback);
+	if (status != kStatus_Success) return status;
+	if (readback != LUX_SENSOR_PSM_VALUE) return kStatus_Fail;
+
+	return status;
+}
+
+static status_t lux_sensor_get_reading(double *reading) {
+	uint16_t raw_value;
+
+	status_t status = lux_sensor_read(LUX_SENSOR_ALS_REG, &raw_value);
+	if (status != kStatus_Success) return status;
+
+	*reading = LUX_SENSOR_RESOLUTION * raw_value;
+
+	if (*reading > 1000) {
+		double x = *reading;
+		double x2 = x * x;
+		double x3 = x * x2;
+		double x4 = x * x3;
+		*reading = 6.0135E-13 * x4 - 9.3924E-09 * x3 + 8.1488E-05 * x2 + 1.0023 * x;
+	}
+
+	return status;
+}
+
 #ifdef THINGSPACE_LOCATION_ENABLE
 
 static uint8_t http_do_post(const char            *endpoint,
@@ -739,6 +855,8 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
     configPRINTF(("ICCID: %s\r\n", iccid));
     configPRINTF(("FW: %s\r\n", modem_fw));
     configPRINTF(("NUM: %s\r\n", device_id));
+
+    lux_sensor_initialized = lux_sensor_initialize() == kStatus_Success;
 
 #ifdef MOD_MEASURE_CURRENT
     CLOCK_SetClkDiv(kCLOCK_DivAdcAsyncClk, 8U, true);
@@ -1403,6 +1521,8 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 					accel_vector.A_y = 0;
 					accel_vector.A_z = 0;
 				}
+
+				if (lux_sensor_initialized) lux_sensor_get_reading(&light_sensor);
 
 #ifdef MOD_MEASURE_CURRENT
 				LPADC_DoSoftwareTrigger(MEASURE_CURRENT_LPADC_BASE, 1U);
