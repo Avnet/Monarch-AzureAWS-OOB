@@ -112,7 +112,7 @@ char device_id[32];
 
 vector_t accel_vector;
 double light_sensor;
-bool button = false;
+uint16_t button = 0;
 double current;
 
 #define Device_Location_Telemetry_JSON 		\
@@ -783,19 +783,23 @@ static uint8_t thingspace_location_update(void) {
 	}
 }
 
-#ifdef THINGSPACE_LOCATION_BUTTON_TRIGGER
-TimerHandle_t xLocationButtonMonitor;
-void vLocationButtonMonitorCallback( TimerHandle_t xTimer )
+#endif  //THINGSPACE_LOCATION_ENABLE
+
+TimerHandle_t xButtonMonitor;
+void vButtonMonitorCallback( TimerHandle_t xTimer )
 {
 	configASSERT( xTimer );
 	static bool prev_state = false;
+
 	bool curr_state = !GPIO_PinRead(BOARD_SW1_GPIO, BOARD_SW1_GPIO_PORT, BOARD_SW1_GPIO_PIN);
 	if (curr_state && !prev_state) {
+		button++;
+#ifdef THINGSPACE_LOCATION_BUTTON_TRIGGER
 		xEventGroupSetBits(xCreatedEventGroup, LOCATION_UPDATE_BIT_MASK);
+#endif
 	}
 	prev_state = curr_state;
 }
-#endif
 
 #if THINGSPACE_LOCATION_UPDATE_RATE
 TimerHandle_t xLocationUpdateTimer;
@@ -805,8 +809,6 @@ void vLocationUpdateTimerCallback( TimerHandle_t xTimer )
 	xEventGroupSetBits(xCreatedEventGroup, LOCATION_UPDATE_BIT_MASK);
 }
 #endif
-
-#endif  //THINGSPACE_LOCATION_ENABLE
 
 static void update_connection_info(void) {
 	gsm_operator_curr_t operator;
@@ -939,14 +941,12 @@ void prvmcsft_Azure_TwinTask( void * pvParameters )
 											( void * ) 0,
 											vTimerCallback );
 
-#ifdef THINGSPACE_LOCATION_BUTTON_TRIGGER
-	xLocationButtonMonitor = xTimerCreate( "Location Button Monitor",
+	xButtonMonitor = xTimerCreate( "Button Monitor",
 											pdMS_TO_TICKS(20),
 											pdTRUE,
 											( void * ) 0,
-											vLocationButtonMonitorCallback );
-	xTimerStart( xLocationButtonMonitor, 0 );
-#endif
+											vButtonMonitorCallback );
+	xTimerStart( xButtonMonitor, 0 );
 
 #if THINGSPACE_LOCATION_UPDATE_RATE
 	eAzure_SM_Task = AZURE_SM_LOCATION_UPDATE;
