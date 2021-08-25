@@ -60,13 +60,40 @@ gsmr_t CellIoT_lib_setTLSSecurityProfileCfg(	uint8_t spId,
 									uint8_t version,
 									const char * cipherSpecs,
 									uint8_t certValidLevel,
-									uint8_t caCertificateID,
-									uint8_t clientCertificateID,
-									uint8_t clientPrivateKeyID,
+									int8_t caCertificateID,
+									int8_t clientCertificateID,
+									int8_t clientPrivateKeyID,
 									const char * psk,
 									const gsm_api_cmd_evt_fn evt_fn,
 									void* const evt_arg,
 									const uint32_t blocking);
+gsmr_t CellIoT_lib_setHTTPConnectionCfg(	uint8_t connID,
+						const char* ip,
+						uint16_t rHostPort,
+						uint8_t authType,
+						const char* user,
+						const char* pass,
+						uint8_t sslEnabled,
+						uint16_t timeout,
+						uint8_t cid,
+						uint8_t spId,
+						const gsm_api_cmd_evt_fn evt_fn,
+						void* const evt_arg,
+						const uint32_t blocking);
+gsmr_t CellIoT_lib_sendHTTP(	uint8_t prof_id,
+				uint8_t command_type,
+				const char* resource,
+				uint16_t data_len,
+				uint8_t post_param,
+				const char* extra_header,
+				const char* data,
+				const gsm_api_cmd_evt_fn evt_fn,
+				void* const evt_arg,
+				const uint32_t blocking);
+gsmr_t CellIoT_lib_recvHTTP(	uint8_t prof_id,
+				const gsm_api_cmd_evt_fn evt_fn,
+				void* const evt_arg,
+				const uint32_t blocking);
 gsmr_t CellIoT_lib_setSocketCfgExt(uint8_t connId, uint8_t srMode, uint8_t recvDataMode, uint8_t keepalive, uint8_t listenAutoRsp, uint8_t sendDataMode, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
 gsmr_t CellIoT_lib_setSocketCfg(uint8_t connId, uint8_t cid, uint16_t pktsize, uint16_t maxto, uint32_t connto , uint32_t txTo , const uint32_t blocking);
 gsmr_t CellIoT_lib_socketClose( uint32_t connId);
@@ -75,5 +102,31 @@ gsmr_t CellIoT_lib_readConfTestMode(void);
 gsmr_t CellIoT_lib_setConfTestMode(const char * ctm, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
 gsmr_t CellIoT_lib_readBandSelection(void);
 gsmr_t CellIoT_lib_setBandSelection(uint8_t id, const char * band, const char * band_number, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
+
+#define TLS_VERSION_1_0    (1)
+#define TLS_VERSION_1_1    (2)
+#define TLS_VERSION_1_2    (3)
+#define TLS_VERSION_1_3    (4)
+
+#define TLS_CERT_NOT_VALIDATED (0)
+
+#define HTTP_CMD_POST (0)
+#define HTTP_CMD_PUT  (1)
+
+#define HTTP_POST_URLENC (0)
+#define HTTP_POST_PLAIN  (1)
+#define HTTP_POST_STREAM (2)
+#define HTTP_POST_FORM   (3)
+#define HTTP_POST_JSON   (4)
+
+#define HTTP_PORT_HTTPS (443)
+
+#define HTTP_AUTH_NONE  (0)
+#define HTTP_AUTH_BASIC (1)
+
+#define HTTP_SSL_DISABLED (0)
+#define HTTP_SSL_ENABLED  (1)
+
+#define HTTP_CID_DEFAULT (0)
 
 #endif /* CELLIOT_LIB_H_ */

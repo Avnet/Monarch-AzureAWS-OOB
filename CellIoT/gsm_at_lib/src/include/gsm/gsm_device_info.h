@@ -51,6 +51,8 @@ gsmr_t      gsm_device_get_manufacturer(char* manuf, size_t len, const gsm_api_c
 gsmr_t      gsm_device_get_model(char* model, size_t len, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
 gsmr_t      gsm_device_get_revision(char* rev, size_t len, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
 gsmr_t      gsm_device_get_serial_number(char* serial, size_t len, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
+gsmr_t      gsm_device_get_card_id_number(char* iccid, size_t len, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
+gsmr_t      gsm_device_get_card_phone_number(char* number, size_t len, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
 
 /**
  * \}

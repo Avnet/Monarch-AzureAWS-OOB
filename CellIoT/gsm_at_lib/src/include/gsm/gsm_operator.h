@@ -52,6 +52,9 @@ gsmr_t      gsm_operator_set(gsm_operator_mode_t mode, gsm_operator_format_t for
 
 gsmr_t      gsm_operator_scan(gsm_operator_t* ops, size_t opsl, size_t* opf, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
 
+gsmr_t      gsm_cereg_get_status(gsm_cereg_status_t* status, const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
+gsmr_t      gsm_cereg_set(const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking);
+
 /**
  * \}
  */

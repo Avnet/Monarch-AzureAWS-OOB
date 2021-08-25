@@ -74,8 +74,10 @@ gsm_operator_set(gsm_operator_mode_t mode, gsm_operator_format_t format, const c
 
     if (mode != GSM_OPERATOR_MODE_AUTO) {       /* Check parameters only if non-auto mode */
         GSM_ASSERT("format < GSM_OPERATOR_FORMAT_INVALID", format < GSM_OPERATOR_FORMAT_INVALID);
-        if (format != GSM_OPERATOR_FORMAT_NUMBER) {
-            GSM_ASSERT("name != NULL", name != NULL);
+        if (mode != GSM_OPERATOR_MODE_SET_FORMAT) {
+            if (format != GSM_OPERATOR_FORMAT_NUMBER) {
+                GSM_ASSERT("name != NULL", name != NULL);
+            }
         }
     }
 
@@ -118,4 +120,44 @@ gsm_operator_scan(gsm_operator_t* ops, size_t opsl, size_t* opf,
     GSM_MSG_VAR_REF(msg).msg.cops_scan.opf = opf;
 
     return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 120000);
+}
+
+/**
+ * \brief           Get current operator
+ * \param[out]      curr: Pointer to output variable to save info about current operator
+ * \param[in]       evt_fn: Callback function called when command has finished. Set to `NULL` when not used
+ * \param[in]       evt_arg: Custom argument for event callback function
+ * \param[in]       blocking: Status whether command should be blocking or not
+ * \return          \ref gsmOK on success, member of \ref gsmr_t enumeration otherwise
+ */
+gsmr_t
+gsm_cereg_set(const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking) {
+    GSM_MSG_VAR_DEFINE(msg);
+
+    GSM_MSG_VAR_ALLOC(msg, blocking);
+    GSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
+    GSM_MSG_VAR_REF(msg).cmd_def = GSM_CMD_CEREG_SET;
+
+    return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 2000);
+}
+
+/**
+ * \brief           Get current operator
+ * \param[out]      curr: Pointer to output variable to save info about current operator
+ * \param[in]       evt_fn: Callback function called when command has finished. Set to `NULL` when not used
+ * \param[in]       evt_arg: Custom argument for event callback function
+ * \param[in]       blocking: Status whether command should be blocking or not
+ * \return          \ref gsmOK on success, member of \ref gsmr_t enumeration otherwise
+ */
+gsmr_t
+gsm_cereg_get_status(gsm_cereg_status_t* status,
+                    const gsm_api_cmd_evt_fn evt_fn, void* const evt_arg, const uint32_t blocking) {
+    GSM_MSG_VAR_DEFINE(msg);
+
+    GSM_MSG_VAR_ALLOC(msg, blocking);
+    GSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
+    GSM_MSG_VAR_REF(msg).cmd_def = GSM_CMD_CEREG_GET;
+    GSM_MSG_VAR_REF(msg).msg.cereg_get_status = status;
+
+    return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 2000);
 }

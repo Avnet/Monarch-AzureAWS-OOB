@@ -38,3 +38,36 @@
 #if GSM_CFG_HTTP || __DOXYGEN__
 
 #endif /* GSM_CFG_HTTP || __DOXYGEN__ */
+
+void gsm_http_response_reset(void) {
+	gsm_core_lock();
+	gsm.m.http_response.prof_id = 0;
+	gsm.m.http_response.status_code = -1;
+	gsm.m.http_response.type[0] = '\0';
+	gsm.m.http_response.data_size = 0;
+	gsm.m.http_response.data[0] = '\0';
+	gsm.m.http_response.is_valid = 0;
+	gsm_core_unlock();
+}
+
+uint8_t gsm_http_response_is_ready(void) {
+	uint8_t is_valid;
+	gsm_core_lock();
+	is_valid = gsm.m.http_response.status_code != -1;
+	gsm_core_unlock();
+	return is_valid;
+}
+
+uint8_t gsm_http_response_is_valid(void) {
+	uint8_t is_valid;
+	gsm_core_lock();
+	is_valid = gsm.m.http_response.is_valid;
+	gsm_core_unlock();
+	return is_valid;
+}
+
+void gsm_http_response_get(gsm_http_response_t *response) {
+	gsm_core_lock();
+	*response = gsm.m.http_response;
+	gsm_core_unlock();
+}

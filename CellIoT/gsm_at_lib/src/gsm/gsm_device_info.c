@@ -138,3 +138,55 @@ gsm_device_get_serial_number(char* serial, size_t len, const gsm_api_cmd_evt_fn 
 
     return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 10000);
 }
+
+/**
+ * \brief           Get device ICCID
+ * \param[in]       iccid: Pointer to output string array to save info
+ * \param[in]       len: Length of string array including `NULL` termination
+ * \param[in]       evt_fn: Callback function called when command has finished. Set to `NULL` when not used
+ * \param[in]       evt_arg: Custom argument for event callback function
+ * \param[in]       blocking: Status whether command should be blocking or not
+ * \return          \ref gsmOK on success, member of \ref gsmr_t enumeration otherwise
+ */
+gsmr_t
+gsm_device_get_card_id_number(char* iccid, size_t len, const gsm_api_cmd_evt_fn evt_fn,
+                            void* const evt_arg, const uint32_t blocking) {
+    GSM_MSG_VAR_DEFINE(msg);
+
+    GSM_ASSERT("iccid != NULL", iccid != NULL);
+    GSM_ASSERT("len > 0", len > 0);
+
+    GSM_MSG_VAR_ALLOC(msg, blocking);
+    GSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
+    GSM_MSG_VAR_REF(msg).cmd_def = GSM_CMD_ICCID_GET;
+    GSM_MSG_VAR_REF(msg).msg.device_info.str = iccid;
+    GSM_MSG_VAR_REF(msg).msg.device_info.len = len;
+
+    return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 10000);
+}
+
+/**
+ * \brief           Get device number
+ * \param[in]       iccid: Pointer to output string array to save info
+ * \param[in]       len: Length of string array including `NULL` termination
+ * \param[in]       evt_fn: Callback function called when command has finished. Set to `NULL` when not used
+ * \param[in]       evt_arg: Custom argument for event callback function
+ * \param[in]       blocking: Status whether command should be blocking or not
+ * \return          \ref gsmOK on success, member of \ref gsmr_t enumeration otherwise
+ */
+gsmr_t
+gsm_device_get_card_phone_number(char* number, size_t len, const gsm_api_cmd_evt_fn evt_fn,
+                            void* const evt_arg, const uint32_t blocking) {
+    GSM_MSG_VAR_DEFINE(msg);
+
+    GSM_ASSERT("number != NULL", number != NULL);
+    GSM_ASSERT("len > 0", len > 0);
+
+    GSM_MSG_VAR_ALLOC(msg, blocking);
+    GSM_MSG_VAR_SET_EVT(msg, evt_fn, evt_arg);
+    GSM_MSG_VAR_REF(msg).cmd_def = GSM_CMD_MSISDN_GET;
+    GSM_MSG_VAR_REF(msg).msg.device_info.str = number;
+    GSM_MSG_VAR_REF(msg).msg.device_info.len = len;
+
+    return gsmi_send_msg_to_producer_mbox(&GSM_MSG_VAR_REF(msg), gsmi_initiate_cmd, 10000);
+}

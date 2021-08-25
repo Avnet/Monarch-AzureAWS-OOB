@@ -50,6 +50,11 @@ extern "C" {
  *
  */
 
+void gsm_http_response_reset(void);
+uint8_t gsm_http_response_is_ready(void);
+uint8_t gsm_http_response_is_valid(void);
+void gsm_http_response_get(gsm_http_response_t *response);
+
 /**
  * \}
  */
